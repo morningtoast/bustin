@@ -5,6 +5,12 @@ version="1.0"
 screen_x,screen_y,screen_w,screen_h=0,0,127,127
 ef=function() end
 cart_update,cart_draw=ef,ef
+cart_control=function(u,d)
+	u=u or ef
+	d=d or ef
+	cart_update,cart_draw=u,d
+	t=0
+end
 --score,lives=0,3
 pi=3.14159265359
 musicon=off
@@ -349,14 +355,6 @@ function portal_draw()
     for p in all(portals) do
         if p.hit then p.c=rnd_table({8,7,10}) else p.c=0 end
     
-    	
-		if not p.hit then
-			for n=1,30 do
-				lx,ly=get_line(p.x,p.y,random(p.r+2,p.r+5),rnd())
-				--line(p.x,p.y,lx,ly,p.c)
-			end
-		end
-		--circfill(p.x,p.y,4,0)
 		local c=rnd_table({7,10,11,8,9})
 		palt(14,true)
 		palt(0,false)
@@ -571,56 +569,7 @@ end
 
 
 
-function game_drawbg() 
-	rectfill(0,0,127,127,0)
-	
-	
-	
-	
-	puft_draw(1)
-	palt(0,false)
-	palt(14,true)
-	map(0,0, -60,-2, 16,3) --grey city
-	map(0,0, 44,-2, 16,3) --grey city
-	rectfill(0,20,127,60, 5)
-	skyfade(47,4)
-	palt()
-	
-	
-	puft_draw(2)
-	palt(0,false)
-	palt(14,true)
-	pal(5,2) --red city
-	map(0,0, 0,25, 16,3) --grey city
-	rectfill(0,48,127,127, 2)
-	skyfade(73,8)
-	palt()
-	
-	puft_draw(3)
-	palt(0,false)
-	palt(14,true)
-	pal(5,1) --blue city
-	rectfill(0,75,127,127, 1)
-	map(0,0, -30,56, 16,3)
-	map(0,0, 70,53, 16,3)
-	
-	skyfade(110,0)
-	
-	
-	--layers
-	local layer_h=20
-	pal(5,5) 
-	map(0,3, 0,lanes[1]+layer_h, 16,1) --1
-	map(0,3, 0,lanes[2]+layer_h, 16,1) --2
-	map(0,3, 0,lanes[3]+layer_h, 16,1) --3
-	map(0,3, 0,lanes[4]+layer_h, 16,1) --4
-	
-	
-	map(0,4, 0,117, 16,1) --4
-	map(0,4, 0,125, 16,1) --4
-	pal()	
-	
-end
+
 
 
 
@@ -630,7 +579,7 @@ end
 selects={"holtz","erin","abby","patty"}
 function charselect_init()
 	select_pos=1
-	cart_update,cart_draw=charselect_update,charselect_draw
+	cart_control(charselect_update,charselect_draw)
 end
 
 function charselect_update()
@@ -682,7 +631,7 @@ function game_init()
 	puft_init()
 	portal_reset()
    
-	cart_update,cart_draw=game_update,game_draw
+	cart_control(game_update,game_draw)
 end
 
 function game_update()
@@ -718,13 +667,150 @@ end
 
 
 
---#over
+function game_drawbg() 
+	rectfill(0,0,127,127,0)
+
+	puft_draw(1)
+	palt(0,false)
+	palt(14,true)
+	map(0,0, -60,-2, 16,3) --grey city
+	map(0,0, 44,-2, 16,3) --grey city
+	rectfill(0,20,127,60, 5)
+	skyfade(47,4)
+	palt()
+	
+	
+	puft_draw(2)
+	palt(0,false)
+	palt(14,true)
+	pal(5,2) --red city
+	map(0,0, 0,25, 16,3) --grey city
+	rectfill(0,48,127,127, 2)
+	skyfade(73,8)
+	palt()
+	
+	puft_draw(3)
+	palt(0,false)
+	palt(14,true)
+	pal(5,1) --blue city
+	rectfill(0,75,127,127, 1)
+	map(0,0, -30,56, 16,3)
+	map(0,0, 70,53, 16,3)
+	
+	skyfade(110,0)
+	
+	
+	--layers
+	local layer_h=20
+	pal(5,5) 
+	map(0,3, 0,lanes[1]+layer_h, 16,1) --1
+	map(0,3, 0,lanes[2]+layer_h, 16,1) --2
+	map(0,3, 0,lanes[3]+layer_h, 16,1) --3
+	map(0,3, 0,lanes[4]+layer_h, 16,1) --4
+	
+	
+	map(0,4, 0,117, 16,1) --4
+	map(0,4, 0,125, 16,1) --4
+	pal()	
+	
+end
 
 
+
+--#victory screen, you win!
+function victory_init()
+	camera()
+	camera_y=0
+	state_ch(1)
+	cart_control(victory_update,victory_draw)
+end
+
+
+
+function victory_update()
+	expl_update()
+	
+	-- intro wait
+	if st_is(1) and t>60 then
+		st_ch(2)
+	end
+	
+	-- fireworks
+	if st_is(2) then
+		if timer(1,random(30,60),true) then
+			expl_create(rnd(115)+15,rnd(60)+15, 24, {
+				dur=30,
+				den=1,
+				colors={rnd(15)},
+				smin=1,
+				smax=3,
+			})
+		end
+	
+		if t>150 then
+			st_add(3)
+		emd
+	end
+	
+	-- pan camera down to show city and character
+	if st_is(3) then
+		camera_y+=1
+		if camera_y>100 then
+			st_rm(3)
+			st_add(4)
+		end
+	end
+
+	-- state4 is in draw(), text timer
+	
+end
+
+
+
+function victory_draw()
+	expl_draw()
+	
+	camera(0,camera_y)
+
+	
+	pal(5,2) --red city
+	palt(14,true)
+	rectfill(0,144+18,127,144+18+80, 2)
+	map(0,0, -20,144, 16,3)
+	map(0,0, 80,144, 16,3)
+	pal()
+	
+	
+	
+	pal(5,1) --blue city
+	palt(14,true)
+	rectfill(0,130+22,127,130+22+127, 1)
+	map(0,0, -30,130, 16,3)
+	map(0,0, 40,130, 16,3)
+	pal()
+	
+	skyfade(130+95,0)
+	
+	
+	draw_char(p_char, 10,187)
+	
+	
+	if st_is(4) then
+		if timer(2,90) then
+			center_text("thank you ghostbusters",200, 7)
+		end
+	end
+end
+
+
+
+
+
+--#over, game over screen
 function gameover_init()
 	slimedrop={}
 	
-	cart_update,cart_draw=gameover_update,gameover_draw
+	cart_control(gameover_update,gameover_draw)
 	
 	for n=0,16 do
 		add(slimedrop,{r=rnd(5)+5,x=8*n,y=rnd(6)*-1})
@@ -877,7 +963,7 @@ function scene1_init()
 	portal_reset()
 	rowan_reset(game_init)
 
-	cart_update,cart_draw=scene1_update,scene1_draw
+	cart_control(scene1_update,scene1_draw)
 	rowan_text="these frames will allow ghosts to enter and take over the world. you won't stop me!"
 end
 
@@ -902,7 +988,7 @@ function scene2_init()
 	portal_reset()
 	rowan_reset(game_init)
 
-	cart_update,cart_draw=scene2_update,scene2_draw
+	cart_control(scene2_update,scene2_draw)
 	rowan_text="impressive. but i have more frames and stronger ghosts. the end is near!"
 end
 
@@ -927,7 +1013,7 @@ function scene3_init()
 	portal_reset()
 	rowan_reset(game_init)
 
-	cart_update,cart_draw=scene3_update,scene3_draw
+	cart_control(scene3_update,scene3_draw)
 	rowan_text="nooo! i must help my ghost minions. take this, ghostbusters!"
 end
 
@@ -952,7 +1038,7 @@ function scene4_init()
 	portal_reset()
 	rowan_reset(game_init)
 
-	cart_update,cart_draw=scene4_update,scene4_draw
+	cart_control(scene4_update,scene4_draw)
 	rowan_text="what?! no, it can't be! i'll stop you myself, ghostbusters!"
 end
 
@@ -1003,7 +1089,7 @@ function title_init()
 	city2_y=130
 	city2_ystop=30
 	
-	cart_update,cart_draw=title_update,title_draw
+	cart_control(title_update,title_draw)
 	
 	p_init()
 	puft_init()
@@ -1443,12 +1529,6 @@ function dir_calc(angle,speed)
 	return dx,dy
 end
 
-function get_line(x,y,dist,dir)
-	fx = flr(cos(dir)*dist+x)
-	fy = flr(sin(dir)*dist+y)
-	
-	return fx,fy
-end
 
 function distance(ox,oy, px,py)
   local a = ox-px
@@ -1471,14 +1551,6 @@ end
 function rnd_table(t)
 	local r=flr(rnd(#t))+1
 	return(t[r])
-end
-
-
-function get_line(x,y,dist,dir)
-	fx = flr(cos(dir)*dist+x)
-	fy = flr(sin(dir)*dist+y)
-	
-	return fx,fy
 end
 
 function is_even(n) 
