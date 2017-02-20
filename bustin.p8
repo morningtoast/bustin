@@ -4,14 +4,11 @@ __lua__
 version="1.0"
 screen_x,screen_y,screen_w,screen_h=0,0,127,127
 ef=function() end
-cart_update=ef
-cart_draw=ef
-score,lives=0,3
+cart_update,cart_draw=ef,ef
+--score,lives=0,3
 pi=3.14159265359
 musicon=off
 -- returns random pos value from provided table
-
-
 
 meter_x=8
 meter_y=116
@@ -21,44 +18,22 @@ meter_vmax=100
 meter_vnow=0
 meter_color=11
 
-
-
 lanes={3,32,61,90}
 kills=0
 nofail=false
 
 p_t=0
 p_char="holtz"
---p_speed=3
+
+level=1
 
 --#player
-
---[[
-function nearest_obj(lane, list)
-    local near_x=999
-    local nearest=false
-    
-
-    for s in all(list) do
-        if s.lane==lane then
-            if s.x<near_x then
-                near_x=s.x
-                nearest=s
-            end
-        end
-    end
-    
-    return nearest
-end
-]]
-
 
 function p_init()
 	p_lane=2
 	p_x,p_y,t,p_dir=2,lanes[p_lane],0,1
 	p_power=meter_vmax
 	p_cooldown=0
-	--last_py=0
 	p_slimed=false
 	p_canmove=true
 	p_canfire=true
@@ -76,15 +51,11 @@ function p_update()
 
 	firing=false
     p_canmove=true
-	
-	--if p_cooldown<=0 then p_canfire=true end
-	--if p_power<=0 then p_canfire=false end
+
 	if p_slimed then p_canmove=false p_canfire=false end
 	
 	local vert=1
-    --local near_portal=nearest_obj(p_lane, portals)
-    --local near_slimer=nearest_obj(p_lane, slimers)    
-	
+
 	if p_slimed and p_t>45 then
 		p_slimed=false
 		p_canfire=true
@@ -173,13 +144,22 @@ end
 --#slimers
 slimers={}
 
-function slimer_create(lane,speed)
-    speed=speed or .5
-	add(slimers,{
-		x=115,y=lanes[lane]+2,lane=lane,
-		ang=0,speed=speed,
-		hp=10,hit=false,st=1,shrink=0
-	})
+function slimer_create(lane)
+	local from_portal=get_portal(lane)
+    
+    local obj={
+		x=from_portal.x,
+		y=lanes[lane]+2,
+		lane=lane,
+		ang=0,
+		speed=level.slimer_speed,
+		hp=level.slimer_hp,
+		hit=false,
+		st=1,
+		shrink=0
+	}
+
+	add(slimers, obj)
 end
 
 function slimer_update()
@@ -242,10 +222,7 @@ function slimer_update()
 				del(slimers,s)
 			end
 		end
-				
-		
-		
-		
+
 	end
 end
 
@@ -276,7 +253,7 @@ end
 
 
 --#portals
-portal_hp=100
+--portal_hp=100
 portal_explodes={}
 
 function get_portal(lane)
@@ -292,42 +269,18 @@ function portal_reset()
 	for n=1,4 do portal_create(n) end
 end
 
-function portal_create(lane,size)
-    size=size or 5
-
+function portal_create(lane)
     add(portals,{
-		x=115,y=lanes[lane]+10,r=5,lane=lane,
-		hp=portal_hp,hit=false,t=0,spawn=random(30,90)
+		x=115,
+		y=lanes[lane]+10,
+		r=5,
+		lane=lane,
+		hp=level.potral_hp,
+		hit=false,t=0,
+		spawn=random(30,level.portal_spawn)
 	})
-
 end
 
-function portal_increase(lane,amt)
-    for p in all(portals) do
-        if p.lane==lane then
-            p.hp+=amt
-            if p.hp>portal_hp then 
-                p.hp=portal_hp
-                p.r+=1
-            end
-            
-            if p.r>7 then p.r=7 end
-            
-            --sparks
-            expl_create(p.x,p.y, 20,{
-                dur=6,
-                den=2,
-                colors={11,0},
-                smin=2,
-                smax=6,
-                grav=.3,
-				dir=.5,
-				range=.25
-					
-            })
-        end
-    end
-end
 
 function portal_update()
     for p in all(portals) do
@@ -359,10 +312,10 @@ function portal_update()
                 --portal is dead
                 if p.r<=0 then
 					
-                    expl_create(p.x,p.y, 21,{
-                        dur=10,
-                        den=4,
-                        colors={8,7,10,13},
+                    expl_create(p.x,p.y, 48,{
+                        dur=20,
+                        den=5,
+                        colors={8,7,10,9,12},
                         smin=2,
                         smax=6,
                         grav=0,
@@ -370,6 +323,7 @@ function portal_update()
                     
                     del(portals,p)
 				else
+					-- explosion circle waves when dropping level
 					add(portal_explodes,{x=p.x,y=p.y,r=0,q=p.r})
                 end
             end
@@ -379,7 +333,7 @@ function portal_update()
         end
         
         if p.t>=p.spawn then
-			if not p.hit and #slimers<8 then
+			if not p.hit and #slimers<level.slimer_max then
             	slimer_create(p.lane)
 			end
             p.t=0
@@ -721,7 +675,6 @@ end
 --#game
 game_st=1
 function game_init()
-	--game_t=0
 	slimers={}
 	
     
@@ -742,16 +695,13 @@ function game_update()
 	trap_update()
 	puft_update()
 
-	if meter_percent()>75 and puft_st<1 then
+	if meter_percent()>70 and puft_st<1 then
 		puft_st=1
 	end
 	
 	if meter_percent()>100 then
 		gameover_init()
 	end
-	
-	
-	--game_t+=1
 end
 
 
@@ -777,9 +727,7 @@ function gameover_init()
 	cart_update,cart_draw=gameover_update,gameover_draw
 	
 	for n=0,16 do
-		add(slimedrop,{
-			r=rnd(5)+5,x=8*n,y=rnd(6)*-1
-		})
+		add(slimedrop,{r=rnd(5)+5,x=8*n,y=rnd(6)*-1})
 	end
 	
 	slimedrop_min=0
@@ -825,16 +773,16 @@ function gameover_draw()
 
 	rectfill(0,0, 130,slimedrop_min+2,11)
 	
-	--slimedrop_y+=1
 	if slimedrop_min>130 then
 		center_text("game over",60,3)
+		center_text("press \142 to play again",85,3)
 	end
 end
 
 
 
 --#rowan
-rowan_text="these picture frames will allow ghosts to take over the world. you won't stop me!"
+
 function draw_rowan(x,y)
 	x=x or rowan_x
 	y=y or rowan_y
@@ -913,14 +861,24 @@ function rowan_entrance_draw()
 	end
 end
 
+function draw_textbox()
+	rectfill(10,65, 117,105, 0)
+	rect(10,65, 117,105, 7)
+end
 
---#scene
+
+
+
+--#scenes
+-- Scene 1, Level 1
 function scene1_init()
-	
+	level={id=1,portal_hp=20,portal_spawn=180,slimer_hp=5,slimer_speed=.5,slimer_max=5}
+
 	portal_reset()
 	rowan_reset(game_init)
 
 	cart_update,cart_draw=scene1_update,scene1_draw
+	rowan_text="these frames will allow ghosts to enter and take over the world. you won't stop me!"
 end
 
 function scene1_update()
@@ -937,11 +895,86 @@ function scene1_draw()
 end
 
 
+-- Scene 2, Level 2
+function scene2_init()
+	level={id=2,portal_hp=40,portal_spawn=90,slimer_hp=8,slimer_speed=.8,slimer_max=9}
 
-function draw_textbox()
-	rectfill(10,65, 117,105, 0)
-	rect(10,65, 117,105, 7)
+	portal_reset()
+	rowan_reset(game_init)
+
+	cart_update,cart_draw=scene2_update,scene2_draw
+	rowan_text="impressive. but i have more frames and stronger ghosts. the end is near!"
 end
+
+function scene2_update()
+	rowan_entrance_update()
+end
+
+function scene2_draw()
+	game_drawbg()
+	p_draw()
+	meter_draw()
+	portal_draw()
+	
+	rowan_entrance_draw()
+end
+
+
+-- Scene 3, Level 3
+function scene3_init()
+	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
+
+	portal_reset()
+	rowan_reset(game_init)
+
+	cart_update,cart_draw=scene3_update,scene3_draw
+	rowan_text="nooo! i must help my ghost minions. take this, ghostbusters!"
+end
+
+function scene3_update()
+	rowan_entrance_update()
+end
+
+function scene3_draw()
+	game_drawbg()
+	p_draw()
+	meter_draw()
+	portal_draw()
+	
+	rowan_entrance_draw()
+end
+
+
+-- Scene 4, Level 4
+function scene4_init()
+	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
+
+	portal_reset()
+	rowan_reset(game_init)
+
+	cart_update,cart_draw=scene4_update,scene4_draw
+	rowan_text="what?! no, it can't be! i'll stop you myself, ghostbusters!"
+end
+
+function scene3_update()
+	rowan_entrance_update()
+end
+
+function scene3_draw()
+	game_drawbg()
+	p_draw()
+	meter_draw()
+	portal_draw()
+	
+	rowan_entrance_draw()
+end
+
+
+
+
+
+
+
 
 
 
@@ -1093,8 +1126,10 @@ end
 
 
 
-shake=0
-shake_t=0
+
+
+-- #utilities and helpers
+shake,shake_t=0,0
 function screenshake()
 	cam_x=0 cam_y=0
 	if shake>0 then
@@ -1112,9 +1147,6 @@ function screenshake()
 end
 
 
-
-
--- #util
 function play_music(track)
 	if musicon then music(track) end	
 end
@@ -1175,12 +1207,10 @@ function wait(max,reset)
 		wait_t+=1 	
 		return false
 	else
-		if reset then wait_reset() end
+		if reset then wait_t=0 end
 		return true
 	end
 end
-
-function wait_reset() wait_t=0 end
 
 
 --text drawing
