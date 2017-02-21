@@ -31,13 +31,11 @@ nofail=false
 p_t=0
 p_char="holtz"
 
-level=1
-
 --#player
 
 function p_init()
 	p_lane=2
-	p_x,p_y,t,p_dir=2,lanes[p_lane],0,1
+	p_x,p_y,p_dir=2,lanes[p_lane],1
 	p_power=meter_vmax
 	p_cooldown=0
 	p_slimed=false
@@ -57,6 +55,7 @@ function p_update()
 
 	firing=false
     p_canmove=true
+	p_canfire=true
 
 	if p_slimed then p_canmove=false p_canfire=false end
 	
@@ -122,7 +121,7 @@ function p_draw()
 		draw_sine(rnd(.3)+.05, fire_t*-2, {muzzle_x,muzzle_y-rnd(4)}, {muzzle_x+fire_w,muzzle_y+rnd(3)}, 12,1)
 	end
 	
-	draw_char(p_char,p_x,p_y)
+	draw_char(p_char, p_x,p_y)
 	
 	if p_slimed then
 		palt(14,true)
@@ -273,6 +272,10 @@ end
 function portal_reset()
 	portals={}
 	for n=1,4 do portal_create(n) end
+	
+	last_portal=0
+	portal_spawn=random(level.portal_spawn,50)
+	timer_set("portalspawn")
 end
 
 function portal_create(lane)
@@ -281,7 +284,7 @@ function portal_create(lane)
 		y=lanes[lane]+10,
 		r=5,
 		lane=lane,
-		hp=level.potral_hp,
+		hp=level.portal_hp,
 		hit=false,t=0,
 		spawn=random(30,level.portal_spawn)
 	})
@@ -289,6 +292,7 @@ end
 
 
 function portal_update()
+	
     for p in all(portals) do
 		p.hit=false
 		if beam_len>=p.x and p.lane==p_lane then p.hit=true end
@@ -298,56 +302,60 @@ function portal_update()
             p.hp-=1
             
             if p.hp<=0 and p.r>0 then
-                --reduce portal size
+				p.r-=1
 				shake=1
-                expl_create(p.x,p.y, 24,{
-                    dur=10,
-                    den=4,
-                    colors={8,7,10},
-                    smin=2,
-                    smax=6,
-                    grav=0,
-                })
 				
-				
-                
-                p.spawn=max(60,p.spawn-25)
-                p.r-=1
-                p.hp=portal_hp
-                
-                --portal is dead
+				--portal is dead
                 if p.r<=0 then
 					
                     expl_create(p.x,p.y, 48,{
-                        dur=20,
+                        dur=40,
                         den=5,
                         colors={8,7,10,9,12},
-                        smin=2,
+                        smin=3,
                         smax=6,
                         grav=0,
                     })
                     
                     del(portals,p)
 				else
-					-- explosion circle waves when dropping level
-					add(portal_explodes,{x=p.x,y=p.y,r=0,q=p.r})
+					expl_create(p.x,p.y, 48,{
+						dur=15,
+						den=5,
+						colors={7},
+						smin=3,
+						smax=8,
+						grav=0,
+					})
+                
+                	p.hp=level.portal_hp
                 end
             end
             
         else
             p.hit=false 
         end
-        
-        if p.t>=p.spawn then
-			if not p.hit and #slimers<level.slimer_max then
-            	slimer_create(p.lane)
-			end
-            p.t=0
-        end
     
         p.t+=1
     end
+	
+	-- portal spawn; randomize from available
+	if #portals>0 then
+		if timer("portalspawn",portal_spawn,true) then
+			local spawnfrom=rnd_table(portals)
 
+			while last_portal==spawnfrom.lane and #portals>1 do
+				spawnfrom=rnd_table(portals)
+			end
+
+			last_portal=spawnfrom.lane
+			portal_spawn=random(level.portal_spawn,50)
+
+			if not spawnfrom.hit and #slimers<level.slimer_max then
+				slimer_create(spawnfrom.lane)
+			end
+		end
+	end
 end
 
 
@@ -627,9 +635,9 @@ function game_init()
 	slimers={}
 	
     
-	p_init()
+	--p_init()
 	puft_init()
-	portal_reset()
+	--portal_reset()
    
 	cart_control(game_update,game_draw)
 end
@@ -650,6 +658,12 @@ function game_update()
 	
 	if meter_percent()>100 then
 		gameover_init()
+	end
+	
+	if #portals<=0 then
+		if level.id==3 then scene4_init() end
+		if level.id==2 then scene3_init() end
+		if level.id==1 then scene2_init() end
 	end
 end
 
@@ -749,7 +763,7 @@ function victory_update()
 	
 		if t>150 then
 			st_add(3)
-		emd
+		end
 	end
 	
 	-- pan camera down to show city and character
@@ -957,9 +971,17 @@ end
 
 --#scenes
 -- Scene 1, Level 1
-function scene1_init()
-	level={id=1,portal_hp=20,portal_spawn=180,slimer_hp=5,slimer_speed=.5,slimer_max=5}
+function scene_reset()
+	p_canfire=false
+	p_slimed=false
+end
 
+
+level={}
+function scene1_init()
+	level={id=1,portal_hp=30,portal_spawn=15,slimer_hp=7,slimer_speed=.5,slimer_max=7}
+
+	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
 
@@ -969,6 +991,7 @@ end
 
 function scene1_update()
 	rowan_entrance_update()
+	debug=level.id
 end
 
 function scene1_draw()
@@ -983,8 +1006,9 @@ end
 
 -- Scene 2, Level 2
 function scene2_init()
-	level={id=2,portal_hp=40,portal_spawn=90,slimer_hp=8,slimer_speed=.8,slimer_max=9}
+	level={id=2,portal_hp=50,portal_spawn=15,slimer_hp=12,slimer_speed=.8,slimer_max=12}
 
+	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
 
@@ -1006,10 +1030,12 @@ function scene2_draw()
 end
 
 
+
 -- Scene 3, Level 3
 function scene3_init()
 	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
 
+	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
 
@@ -1035,6 +1061,7 @@ end
 function scene4_init()
 	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
 
+	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
 
@@ -1176,9 +1203,9 @@ function _init()
 	
 	--charselect_init()
 	--boot_init()
-	--title_init()
-	game_init()
-	--story1_init()
+	title_init()
+	--game_init()
+	--scene1_init()
 	--gameover_init()
 end
 
@@ -1205,7 +1232,7 @@ function _draw()
 	cart_draw()
 	
 	--rect(0,0,127,127,5)
-	--print(debug,1,100,10)
+	print(debug,1,100,10)
 end
 
 
@@ -1255,13 +1282,13 @@ function st_is(st)
 end
 
 timers={}
-function timer_set(t) timer[t]=0 end
-function timer_get(t) return timer[t] end
-function timer_rm(t) timer[t]=false end
+function timer_set(t) timers[t]=0 end
+function timer_get(t) return timers[t] end
+function timer_rm(t) timers[t]=false end
 function timer_is(t,limit)
 	limit=limit or 32000
 	
-	if timer[t] then
+	if timers[t] then
 		if timer_get(t)>limit then return true end
 	end
 	return false
