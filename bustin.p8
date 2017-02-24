@@ -630,20 +630,15 @@ end
 
 
 --#game
-game_st=1
 function game_init()
 	slimers={}
-	
-    
-	--p_init()
+
 	puft_init()
-	--portal_reset()
-   
+
 	cart_control(game_update,game_draw)
 end
 
 function game_update()
-	
 	meter_update()
 	p_update()
 	slimer_update()
@@ -885,8 +880,7 @@ end
 
 
 --#rowan
-
-function draw_rowan(x,y)
+function rowan_draw(x,y)
 	x=x or rowan_x
 	y=y or rowan_y
 	
@@ -965,7 +959,7 @@ function rowan_entrance_update()
 end
 
 function rowan_entrance_draw()
-	draw_rowan()
+	rowan_draw()
 	
 	if st_is(91.1) then
 		draw_textbox()
