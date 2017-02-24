@@ -33,7 +33,7 @@ p_char="holtz"
 
 --#player
 
-function p_init()
+function p_reset()
 	p_lane=2
 	p_x,p_y,p_dir=2,lanes[p_lane],1
 	p_power=meter_vmax
@@ -661,9 +661,13 @@ function game_update()
 	end
 	
 	if #portals<=0 then
-		if level.id==3 then scene4_init() end
-		if level.id==2 then scene3_init() end
-		if level.id==1 then scene2_init() end
+		current_level+=1
+		if current_level>4 then
+			--rowan_death() --end scene
+		else
+			scene_init() --continue	
+		end
+		
 	end
 end
 
@@ -678,7 +682,6 @@ function game_draw()
 	slimer_draw()
 	meter_draw()
 end
-
 
 
 function game_drawbg() 
@@ -871,7 +874,7 @@ function gameover_draw()
 		circfill(s.x,s.y,s.r,11)
 	end
 
-	rectfill(0,0, 130,slimedrop_min+2,11)
+	rectfill(-8,0, 130,slimedrop_min+3, 11)
 	
 	if slimedrop_min>130 then
 		center_text("game over",60,3)
@@ -931,19 +934,34 @@ function rowan_entrance_update()
 		
 	end
 	
-	--rowan leaves
+	--rowan leaves after player continues from textbox (92)
 	if st_is(92) then
-		if wait(60) then
-			if rowan_y>-50 then
-				rowan_y-=1
+		-- Levels 1 and 2; Normal up and out exit
+		if current_level<=2 then
+			if wait(60) then
+				if rowan_y>-50 then
+					rowan_y-=1
+				else
+					rowan_next()
+				end
 			else
-				rowan_next()
+				rowan_a+=0.02
+				rowan_y = 35+sin(rowan_a)*4
 			end
-		else
-			rowan_a+=0.02
-			rowan_y = 35+sin(rowan_a)*4
 		end
+	
+		-- Level 3, jumps into frames
+		if current_level==3 then
+			
+		end
+		
+		-- Level 4...grows? 
+		if current_level==4 then
+			
+		end
+			
 	end
+
 end
 
 function rowan_entrance_draw()
@@ -970,110 +988,64 @@ end
 
 
 --#scenes
--- Scene 1, Level 1
 function scene_reset()
 	p_canfire=false
 	p_slimed=false
+	firing=false
+	meter_vnow=0 --reset slime meter for each level
 end
 
 
-level={}
-function scene1_init()
-	level={id=1,portal_hp=30,portal_spawn=15,slimer_hp=7,slimer_speed=.5,slimer_max=7}
+levels={
+	{ -- Level 1
+		portal_hp=30,
+		portal_spawn=15,
+		slimer_hp=7,
+		slimer_speed=.5,
+		slimer_max=7,
+		rowan_text="these frames will allow ghosts to enter and take over the world. you won't stop me!"
+	},
+	{ -- Level 2
+		portal_hp=30,
+		portal_spawn=15,
+		slimer_hp=7,
+		slimer_speed=.5,
+		slimer_max=7,
+		rowan_text="impressive. but i have more frames and stronger ghosts. the end is near!"
+	},
+	{ -- Level 3
+		portal_hp=30,
+		portal_spawn=15,
+		slimer_hp=7,
+		slimer_speed=.5,
+		slimer_max=7,
+		rowan_text="arg! i must help my ghost army. you can't stop us all!"
+	},
+	{ -- Level 4
+		portal_hp=30,
+		portal_spawn=15,
+		slimer_hp=7,
+		slimer_speed=.5,
+		slimer_max=7,
+		rowan_text="what?! no! i'll stop you myself, ghostbusters!"
+	}
+}
+
+function scene_init()
+	level=levels[current_level]
 
 	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
 
-	cart_control(scene1_update,scene1_draw)
-	rowan_text="these frames will allow ghosts to enter and take over the world. you won't stop me!"
+	cart_control(scene_update,scene_draw)
 end
 
-function scene1_update()
-	rowan_entrance_update()
-	debug=level.id
-end
-
-function scene1_draw()
-	game_drawbg()
-	p_draw()
-	meter_draw()
-	portal_draw()
-	
-	rowan_entrance_draw()
-end
-
-
--- Scene 2, Level 2
-function scene2_init()
-	level={id=2,portal_hp=50,portal_spawn=15,slimer_hp=12,slimer_speed=.8,slimer_max=12}
-
-	scene_reset()
-	portal_reset()
-	rowan_reset(game_init)
-
-	cart_control(scene2_update,scene2_draw)
-	rowan_text="impressive. but i have more frames and stronger ghosts. the end is near!"
-end
-
-function scene2_update()
+function scene_update()
 	rowan_entrance_update()
 end
 
-function scene2_draw()
-	game_drawbg()
-	p_draw()
-	meter_draw()
-	portal_draw()
-	
-	rowan_entrance_draw()
-end
-
-
-
--- Scene 3, Level 3
-function scene3_init()
-	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
-
-	scene_reset()
-	portal_reset()
-	rowan_reset(game_init)
-
-	cart_control(scene3_update,scene3_draw)
-	rowan_text="nooo! i must help my ghost minions. take this, ghostbusters!"
-end
-
-function scene3_update()
-	rowan_entrance_update()
-end
-
-function scene3_draw()
-	game_drawbg()
-	p_draw()
-	meter_draw()
-	portal_draw()
-	
-	rowan_entrance_draw()
-end
-
-
--- Scene 4, Level 4
-function scene4_init()
-	level={id=3,portal_hp=70,portal_spawn=120,slimer_hp=10,slimer_speed=.8,slimer_max=12}
-
-	scene_reset()
-	portal_reset()
-	rowan_reset(game_init)
-
-	cart_control(scene4_update,scene4_draw)
-	rowan_text="what?! no, it can't be! i'll stop you myself, ghostbusters!"
-end
-
-function scene3_update()
-	rowan_entrance_update()
-end
-
-function scene3_draw()
+function scene_draw()
 	game_drawbg()
 	p_draw()
 	meter_draw()
@@ -1118,9 +1090,11 @@ function title_init()
 	
 	cart_control(title_update,title_draw)
 	
-	p_init()
+	p_reset()
 	puft_init()
 	puft_y=25
+	
+	current_level=1
 end
 
 function title_update() 
@@ -1183,8 +1157,6 @@ function title_draw()
 		center_text("makes me feel good",90,11)
 		center_text("press \142 to start",108,7)
 	end
-	
-	
 end
 
 
