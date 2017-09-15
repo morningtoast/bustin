@@ -4,23 +4,21 @@ __lua__
 version="1.0"
 screen_x,screen_y,screen_w,screen_h=0,0,127,127
 
---score,lives=0,3
-pi=3.14159265359
-musicon=off
--- returns random pos value from provided table
+-- bustin'
+-- 2017, brian vaughn
 
+-- follow @morningtoast
+-- check out my other Pico-8 games: https://www.lexaloffle.com/bbs/?uid=12806&mode=carts
+
+
+musicon=true
 lanes={3,32,61,90}
-
-nofail=false
 unlocked=false
 charmode=0 --0=girls,1=boys
-
 p_t=0
 p_char="holtz"
 
 --#player
--- resets play session
-
 function p_update()
     muzzle_x=p_x+16
     muzzle_y=p_y+12
@@ -35,10 +33,10 @@ function p_update()
 	
 	local vert=1
 
-	if p_slimed and p_t>45 then -- time disabled by slime
+	-- player becomes unslimed
+	if p_slimed and p_t>45 then -- time player is disabled by slime
 		p_slimed=false
 		p_canfire=true
-		
 		p_invincible=1
 	end
 		
@@ -125,6 +123,7 @@ function p_draw()
 		if p_invincible>30 then p_invincible=0 end
 	end
 	
+	-- overheated, draw smoke
 	if p_power>=100 then
 		expl_create(muzzle_x+2,muzzle_y, 1, {
 			dur=18, --30
@@ -148,8 +147,8 @@ function p_draw()
 	
 end
 
+--player sprite
 function draw_char(id,x,y)
-	--player sprite
 	palt(0,false)
 	palt(14,true)
 	
@@ -305,7 +304,7 @@ function portal_reset()
 	end
 	
 	last_portal=0
-	portal_spawn=random(15,level.portal_spawn)
+	portal_spawn=random(30,level.portal_spawn)
 	timer_set("portalspawn")
 end
 
@@ -414,7 +413,7 @@ function portal_update()
 			end
 
 			last_portal=spawnfrom.lane
-			portal_spawn=random(15,level.portal_spawn)
+			portal_spawn=random(30,level.portal_spawn)
 			
 			if #portals==1 then
 				portal_spawn=60
@@ -926,9 +925,6 @@ function victory_init()
 	function victory_update()
 		p_y=lanes[p_lane]
 		
-		--p_update()
-		--p_canfire=false
-		
 		trap_update()
 		expl_update()
 		
@@ -964,7 +960,6 @@ function victory_init()
 		
 		
 		if vic_st==4 then
-			--rowan_bob()
 			trap_create(p_lane)
 			vic_st=5 t=0
 			rowan_scale=1
@@ -1012,11 +1007,10 @@ function victory_init()
 					intro_text(";;thank you ghostbusters!;")
 					intro_text(";;the city is once again safe...;")
 					intro_text(";;...for now;")
-					intro_text(";design+code;brian vaughn;@morningtoast;")
-					intro_text(";music+sounds;brian follick;@gnarcade_vgm;")
+					intro_text(";design+code;@morningtoast;")
+					intro_text(";music+sounds;@gnarcade_vgm;")
 					intro_text(";character art;hal laboratory, 1990;;additional art;@morningtoast;")
 					intro_text(";;thanks for playing;")
-					--intro_init(ef)
 				end
 			end
 		end
@@ -1103,7 +1097,6 @@ function gameover_init()
 	
 	
 	function gameover_update()
-		--meter_update()
 		slimer_update()
 		expl_update()
 		trap_update()
@@ -1314,13 +1307,12 @@ end
 levels={
 	{ -- level 1
 		portal_hp=50,
-		portal_spawn=60,
+		portal_spawn=60, -- spawn of next slimer is between 30f and this number
 		portal_offset={36,24,12,0},
 		slimer_hp=10,
-		--slimer_atk=10, -- slime to add when they escape
 		slimer_speed=.5,
 		slimer_max=7,
-		rowan_text="these portals will let my ghosts enter your world. the city shall be ours!"
+		rowan_text="these portals will let my ghost army enter your world. the city shall be ours!"
 	},
 	{ -- level 2
 		portal_hp=50,
@@ -1329,17 +1321,15 @@ levels={
 		slimer_hp=10,
 		slimer_speed=.6,
 		slimer_max=10,
-		--slimer_atk=15,
-		rowan_text="haa, haa, haa... think that's all? wrong! there's more where that came from. attack!"
+		rowan_text="think that's it, ghostbusters? there's more where that came from."
 	},
 	{ -- level 3
 		portal_hp=50,
 		portal_spawn=50,
-		portal_offset={36,12,12,36},
+		portal_offset={36,12,36,12},
 		slimer_hp=10,
-		slimer_speed=.75,
+		slimer_speed=.7,
 		slimer_max=8,
-		--slimer_atk=20,
 		rowan_text="impressive. but i have more portals and evil spirits. prepare to meet your doom!"
 	},
 	{ -- level 4, jumping mirrrs
@@ -1347,17 +1337,17 @@ levels={
 		portal_spawn=50,
 		portal_offset={0,0,0,0},
 		slimer_hp=10,
-		slimer_speed=.5,
+		slimer_speed=.6,
 		slimer_max=10,
 		rowan_text="i must help my ghost army. the end is near, ghostbusters. you can't stop us all!"
 	},
 	{ -- level 5, boss fight
-		portal_hp=50,
+		portal_hp=40,
 		portal_spawn=50,
 		portal_offset={0,0,0,0},
 		slimer_hp=6,
 		slimer_speed=.8,
-		slimer_max=8,
+		slimer_max=10,
 		rowan_text="i guess if you want to take over the world, you have to do it yourself."
 	}
 }
@@ -1369,7 +1359,7 @@ function scene_init()
 	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
-	--rowan_st=5 --#debug
+	--rowan_st=5 -- @debug
 	
 	function scene_update()
 		rowan_entrance_update()
@@ -1446,17 +1436,14 @@ function title_init()
 	p_canfire=true
 	p_invincible=0
 	kills=0
-	--meter_vnow=0
-	
+
 	fire_w=0
 	fire_t=0 --needed for sine wave	
 	
-	--p_reset()
 	puft_init()
 	puft_y=25
 	
 	current_level=1 --debug
-	--meter_vnow=0
 end
 
 function title_update() 
@@ -1563,12 +1550,9 @@ function _init()
 end
 
 function _update()
-	--btnl=btn(0)
-	--btnr=btn(1)
 	btnup=btnp(2)
 	btndp=btnp(3)
 	btnz=btn(4)
-	--btnx=btn(5)
 	btnzp=btnp(4)
 	btnxp=btnp(5)
 	
@@ -1583,10 +1567,7 @@ function _draw()
 	cls()
 
 	cart_draw()
-	
-	--rect(0,0,127,127,5)
-	--local dbmem=flr((stat(0)/1024)*100).."%m / "..flr(((flr(stat(1)*100))/200)*100).."%c"
-	--print(dbmem,70,0,8)
+
 	if debug then print(debug,1,100,10) end
 end
 
@@ -1617,7 +1598,6 @@ end
 
 
 shake,shake_t=0,0
-
 function screenshake()
 	cam_x=0 cam_y=0
 	if shake>0 then
@@ -1634,8 +1614,6 @@ function screenshake()
 			shake_t=0 
 		end
 	end
-	
-	--camera(cam_x,cam_y)
 end
 
 
@@ -1644,7 +1622,7 @@ function play_music(track)
 end
 
 	
---#state
+--[[#state
 states={}
 function st_add(st) add(states,st) end
 function st_rm(st) del(states,st) end
@@ -1666,12 +1644,13 @@ function st_debug()
 	end
 	return t
 end
-
+]]
 
 timers={}
 function timer_set(t) timers[t]=0 end
 function timer_get(t) return timers[t] end
-function timer_rm(t) timers[t]=false end
+--function timer_rm(t) timers[t]=false end
+--[[
 function timer_is(t,limit)
 	limit=limit or 32000
 	
@@ -1680,6 +1659,7 @@ function timer_is(t,limit)
 	end
 	return false
 end
+]]
 
 function timer(t,limit,reset)
 	reset=reset or true
@@ -1716,14 +1696,14 @@ function wait_reset() wait_t=0 end
 
 --text drawing
 function tbx_init()
-tbx_counter=1
-tbx_width=26 --characters not pixels
-tbx_lines={}
-tbx_cur_line=1
-tbx_com_line=0
-tbx_text=nil
-tbx_x=nil
-tbx_y=nil
+	tbx_counter=1
+	tbx_width=26 --characters not pixels
+	tbx_lines={}
+	tbx_cur_line=1
+	tbx_com_line=0
+	tbx_text=nil
+	tbx_x=nil
+	tbx_y=nil
 end
 
 
@@ -1796,11 +1776,11 @@ end
 
 
 function textbox(text,x,y,col)
- tbx_init()
- tbx_x=x or 4
- tbx_y=y or 4
- tbx_col=col or 7
- tbx_text=text
+	tbx_init()
+	tbx_x=x or 4
+	tbx_y=y or 4
+	tbx_col=col or 7
+	tbx_text=text
 end
 
 	
@@ -1884,7 +1864,7 @@ end
 	
 	
 
--- checks to see if value is in a table
+--[[ checks to see if value is in a table
 function in_table(tbl, element)
   for _, value in pairs(tbl) do
     if value == element then
@@ -1893,7 +1873,7 @@ function in_table(tbl, element)
   end
   return false
 end
-	
+]]
 	
 function center_text(s,y,c) print(s,64-(#s*2),y,c) end
 
@@ -1912,6 +1892,7 @@ end
 --by lumiette
 
 --game
+pi=3.14159265359
 function sine(amplitude, speed, phase)
   phase=phase or 1
   return amplitude * (sin((t+phase/pi)*speed))
@@ -1944,12 +1925,13 @@ function dir_calc(angle,speed)
 	return dx,dy
 end
 
-
+--[[
 function distance(ox,oy, px,py)
   local a = ox-px
   local b = oy-py
   return pythag(a,b)
 end
+]]
 
 function random(min,max)
 	n=round(rnd(max-min))+min
@@ -1973,7 +1955,7 @@ function is_even(n)
 end
 
 
-
+--[[
 function offscreen(x,y)
 	if (x<screen_x or x>screen_w or y<screen_y or y>screen_h) then 
 		return true
@@ -1981,8 +1963,9 @@ function offscreen(x,y)
 		return false
 	end
 end
+]]
 
--- returns true if hitbox collision 
+--[[ returns true if hitbox collision 
 function collide(ax,ay,ahb, bx,by,bhb)
 
     -- get the intersection of p and af
@@ -1998,7 +1981,7 @@ function collide(ax,ay,ahb, bx,by,bhb)
 					
 	return false
 end	
-
+]]
 
 
 
