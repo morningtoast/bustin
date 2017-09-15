@@ -3,49 +3,23 @@ version 8
 __lua__
 version="1.0"
 screen_x,screen_y,screen_w,screen_h=0,0,127,127
-ef=function() end
-cart_update,cart_draw=ef,ef
-cart_control=function(u,d)
-	u=u or ef
-	d=d or ef
-	cart_update,cart_draw=u,d
-	t=0
-end
+
 --score,lives=0,3
 pi=3.14159265359
 musicon=off
 -- returns random pos value from provided table
 
-meter_x=8
-meter_y=116
-meter_w=110
-meter_h=7
-meter_vmax=100
-meter_vnow=0
-meter_color=11
-
 lanes={3,32,61,90}
-kills=0
+
 nofail=false
+unlocked=false
+charmode=0 --0=girls,1=boys
 
 p_t=0
 p_char="holtz"
 
 --#player
-
-function p_reset()
-	p_lane=2
-	p_x,p_y,p_dir=2,lanes[p_lane],1
-	p_power=meter_vmax
-	p_cooldown=0
-	p_slimed=false
-	p_canmove=true
-	p_canfire=true
-	meter_vnow=0
-	
-	fire_w=0
-	fire_t=0 --needed for sine wave
-end
+-- resets play session
 
 function p_update()
     muzzle_x=p_x+16
@@ -61,9 +35,11 @@ function p_update()
 	
 	local vert=1
 
-	if p_slimed and p_t>45 then
+	if p_slimed and p_t>45 then -- time disabled by slime
 		p_slimed=false
 		p_canfire=true
+		
+		p_invincible=1
 	end
 		
 	
@@ -73,13 +49,27 @@ function p_update()
         p_canmove=false
         fire_speed=8
 		
+		
         if p_canfire then
+			p_power=min(p_power+1.6,100) --speed of overheating
+			if p_power>=100 then
+				p_canfire=false
+				firing=false 
+				fire_w=0
+			end
 			
             for s in all(slimers) do
                 if s.lane==p_lane and s.st!=1 then
                     fire_speed=0
                 end
             end
+			
+			for p in all(portals) do
+				if beam_len>=p.x and p.lane==p_lane then 
+					p.hit=true 
+					fire_speed=0
+				end
+			end
 
             
             fire_w+=fire_speed
@@ -90,6 +80,7 @@ function p_update()
             fire_t=0
         end
     else
+		p_power=max(p_power-3,0) --speed of reducing overheat
 		fire_w=0
     end
 	
@@ -104,6 +95,7 @@ function p_update()
 		if btndp then vert=1 end
 		if btnup then vert=-1 end
 		
+		p_power=0
 		p_lane+=1*vert
 		if p_lane>#lanes then p_lane=#lanes end
 		if p_lane<1 then p_lane=1 end
@@ -121,7 +113,32 @@ function p_draw()
 		draw_sine(rnd(.3)+.05, fire_t*-2, {muzzle_x,muzzle_y-rnd(4)}, {muzzle_x+fire_w,muzzle_y+rnd(3)}, 12,1)
 	end
 	
-	draw_char(p_char, p_x,p_y)
+	if p_invincible<1 then
+		draw_char(p_char, p_x,p_y)
+	else
+		if is_even(p_invincible) then
+			draw_char(p_char, p_x,p_y)
+		end
+		
+		p_invincible+=1
+		
+		if p_invincible>30 then p_invincible=0 end
+	end
+	
+	if p_power>=100 then
+		expl_create(muzzle_x+2,muzzle_y, 1, {
+			dur=18, --30
+			decay=-.2,
+			den=1, --0
+			colors={5,6,1,0},
+			smin=.2, --1
+			smax=.5, --1
+			grav=-.2, --.3
+			dir=.25, --0 (all directions)
+			range=.05
+			
+		})
+	end
 	
 	if p_slimed then
 		palt(14,true)
@@ -141,6 +158,13 @@ function draw_char(id,x,y)
 	if id=="abby" then spr(153,x,y,2,2) end --abby
 	if id=="erin" then spr(183,x+1,y+1,2,2) end --erin
 	if id=="patty" then spr(185,x+2,y+1,2,2) end --patty
+
+	-- boys
+	if id=="peter" then spr(155,x+1,y+1,2,2) end --peter
+	if id=="ray" then spr(187,x+2,y+1,2,2) end --ray
+	if id=="winston" then spr(189,x+3,y+1,2,2) end --zed
+	if id=="egon" then spr(157,x+3,y,2,2) end --egon
+	
 	pal()
 end
 
@@ -190,14 +214,14 @@ function slimer_update()
 			end
 
 			-- slime player
-			if s.lane==p_lane and s.x<muzzle_x-8 and s.x>0 then
+			if s.lane==p_lane and s.x<muzzle_x-8 and s.x>0 and p_invincible<1 then
 				p_slimed=true
 				p_t=0
 			end
 
 			if s.x<-16 then
-				meter_inc(5)
-				del(slimers,s)
+				p_slime=min(p_slime+5,100) -- add to slime meter
+				slimer_kill(s)
 			end
 		end
 		
@@ -215,8 +239,7 @@ function slimer_update()
                     smax=4,
                     grav=1,
                 })
-				del(slimers,s)
-                kills+=1
+				slimer_kill(s)
 			end
 		end
 
@@ -224,7 +247,7 @@ function slimer_update()
 		if s.st==3 then
 			s.shrink+=1.5
 			if s.shrink>=14 then
-				del(slimers,s)
+				slimer_kill(s)
 			end
 		end
 
@@ -254,6 +277,12 @@ function slimer_draw()
 	end	
 end
 
+function slimer_kill(obj)
+	-- @sound ghost kill
+	kills+=1	
+	del(slimers,obj)
+end
+
 
 
 
@@ -271,22 +300,27 @@ end
 
 function portal_reset()
 	portals={}
-	for n=1,4 do portal_create(n) end
+	for n=1,4 do 
+		portal_create(n,level.portal_offset[n]) 
+	end
 	
 	last_portal=0
-	portal_spawn=random(level.portal_spawn,50)
+	portal_spawn=random(15,level.portal_spawn)
 	timer_set("portalspawn")
 end
 
-function portal_create(lane)
+function portal_create(lane,xoffset)
     add(portals,{
-		x=115,
+		x=110-xoffset,
 		y=lanes[lane]+10,
 		r=5,
 		lane=lane,
 		hp=level.portal_hp,
 		hit=false,t=0,
-		spawn=random(30,level.portal_spawn)
+		jump=false,
+		isjumping=false,
+		ang=0,
+		jt=0
 	})
 end
 
@@ -294,10 +328,6 @@ end
 function portal_update()
 	
     for p in all(portals) do
-		p.hit=false
-		if beam_len>=p.x and p.lane==p_lane then p.hit=true end
-		
-		
         if p.hit then 
             p.hp-=1
             
@@ -307,7 +337,7 @@ function portal_update()
 				
 				--portal is dead
                 if p.r<=0 then
-					
+					-- @sound portal dead
                     expl_create(p.x,p.y, 48,{
                         dur=40,
                         den=5,
@@ -318,7 +348,10 @@ function portal_update()
                     })
                     
                     del(portals,p)
+                    
 				else
+					--portal shatters once
+					-- @sound portal hit
 					expl_create(p.x,p.y, 48,{
 						dur=15,
 						den=5,
@@ -329,13 +362,45 @@ function portal_update()
 					})
                 
                 	p.hp=level.portal_hp
+					
+					if p.jump then -- pick new portal for jumping
+						p.jump=false
+						portal_jump_pick(p.lane)
+					end
                 end
             end
             
         else
             p.hit=false 
+			
+			if p.jump then
+				
+				if p.x>50 then
+					if p.jt==0 then 
+						-- @sound of jumping portal
+					end
+					
+					if p.jt>45 and p.jt<60 then --
+						p.x-=1
+						p.ang+=.16 --distance between crests
+						p.y+=sin(p.ang)*1 --height of wave
+						p.isjumping=true
+					end
+
+					if p.jt==210 then
+						p.isjumping=false
+						p.jt=0
+						p.ang=0
+					end
+
+					p.jt+=1
+				end
+			end
+			
+			
         end
     
+		p.hit=false
         p.t+=1
     end
 	
@@ -349,7 +414,11 @@ function portal_update()
 			end
 
 			last_portal=spawnfrom.lane
-			portal_spawn=random(level.portal_spawn,50)
+			portal_spawn=random(15,level.portal_spawn)
+			
+			if #portals==1 then
+				portal_spawn=60
+			end
 
 			if not spawnfrom.hit and #slimers<level.slimer_max then
 				slimer_create(spawnfrom.lane)
@@ -358,12 +427,29 @@ function portal_update()
 	end
 end
 
+function portal_jump_pick(lastlane)
+	if #portals>1 then
+		local pick={lane=lastlane}
+		
+		while pick.lane==lastlane do
+			pick=rnd_table(portals)
+		end
+		
+		pick.jump=true
+		pick.jt=0
+	else
+		local pick=rnd_table(portals)
+		pick.jump=true
+		pick.jt=0
+	end
+end
+
 
 function portal_draw()
     for p in all(portals) do
         if p.hit then p.c=rnd_table({8,7,10}) else p.c=0 end
     
-		local c=rnd_table({7,10,11,8,9})
+		local c=rnd_table({3,11})
 		palt(14,true)
 		palt(0,false)
 		pal(0,c)
@@ -377,7 +463,7 @@ function portal_draw()
 		if p.r<3 then pal(9,0) end
 		if p.r<2 then pal(15,0) end
 		
-		spr(3,p.x-6,p.y-8,2,2)
+		spr(3,p.x,p.y-8,2,2)
 		pal()
         
 		if p.hit then
@@ -423,10 +509,11 @@ end
 function trap_update()
 		if trap_st==1 then
 			trap_x+=2
-			if trap_x>40 then trap_st=2 end
+			if trap_x>30 then trap_st=2 end
 		end
 		
 		if trap_st==2 then
+			-- @sound of trap opening, one-timer
 			for n=0,48 do
 				local obj={
 					ox=random(trap_x-6,trap_x+16),
@@ -507,6 +594,9 @@ function puft_update()
 		
 		if puft_x<-40 then 
 			puft_dir=1
+			puft_st+=1
+			if puft_st>3 then puft_st=1 end
+			puft_bottom=lanes[puft_st]+1.8
 		end
 
 		if puft_x>150 then 
@@ -526,6 +616,7 @@ end
 function puft_draw(s)
 	if puft_st==s then
 		palt(14,true)
+		palt(0,false)
 		spr(35,puft_x,puft_y,2,3)
 		palt()
 	end
@@ -539,40 +630,26 @@ end
 
 
 --#meter
-meter_bar=0
-function meter_update()
-	if meter_vnow>0 then
-		meter_per=meter_vnow/meter_vmax
-		meter_bar=flr(meter_w*meter_per)
-	else
-		meter_bar=0
-	end
-	
-	if meter_vnow>=meter_vmax then meter_vnow=meter_vmax end
-	if meter_vnow<1 then meter_vnow=0 end
-end
-
-function meter_full()
-	if meter_vnow>=meter_vmax then return true else return false end
-end
-
-function meter_percent()
-	if meter_vnow>0 then
-		return flr((meter_vnow/meter_vmax)*100)
-	else
-		return 0
-	end
-end
-
-function meter_inc(v) meter_vnow+=v end
-function meter_dec(v) meter_vnow-=v end
-
 function meter_draw()
-	palt(0,false)
-	rectfill(meter_x,meter_y, meter_x+meter_w,meter_y+meter_h, 0) --progress bar
-	rectfill(meter_x,meter_y, meter_x+meter_bar,meter_y+meter_h, meter_color) --progress bar
-	rect(meter_x,meter_y, meter_x+meter_w,meter_y+meter_h, 6) --border
-	palt()
+		local hpbarx1,hpbarx2=4,46
+		local hpbary1,hpbary2=116,124
+		local hpbarw=flr((hpbarx2-hpbarx1)*(p_power/100))
+		
+		rectfill(hpbarx1,hpbary1, hpbarx2,hpbary2, 0)
+		rectfill(hpbarx1,hpbary1, hpbarx1+hpbarw,hpbary2, 8)
+		rect(hpbarx1,hpbary1, hpbarx2,hpbary2, 7)
+		print("overheated",hpbarx1+2,hpbary1+2, 0)
+		
+		
+		local hpbarx1,hpbarx2=50,120
+		local hpbary1,hpbary2=116,124
+		local hpbarw=flr((hpbarx2-hpbarx1)*(p_slime/100))
+		
+		rectfill(hpbarx1,hpbary1, hpbarx2,hpbary2, 0)
+		rectfill(hpbarx1,hpbary1, hpbarx1+hpbarw,hpbary2, 11)
+		rect(hpbarx1,hpbary1, hpbarx2,hpbary2, 7)
+		print("slime",hpbarx1+2,hpbary1+2, 0)
+
 end
 
 
@@ -584,48 +661,77 @@ end
 
 --#charselect
 
-selects={"holtz","erin","abby","patty"}
+
+
 function charselect_init()
-	select_pos=1
+	local select_pos=1
+	
+	if charmode>0 then
+		selects={"peter","ray","egon","winston"}
+	else
+		selects={"holtz","erin","abby","patty"}
+	end
+	
+	
+	function charselect_update()
+		if btnp(1) then select_pos+=1 end
+		if btnp(0) then select_pos-=1 end
+		if btndp then select_pos+=2 end
+		if btnup then select_pos-=2 end
+		
+		if select_pos<1 then select_pos=1 end
+		if select_pos>4 then select_pos=4 end
+		
+		p_char=selects[select_pos]
+		
+		if btnzp then scene_init() end
+	end
+
+	function charselect_draw()
+		rectfill(0,0,127,127,1)
+		
+		center_text("select your ghostbuster",5,7)
+		
+		if charmode>0 then
+			draw_char("peter",30,30)
+			print("peter",28,55,7)
+			
+			draw_char("ray",80,30)
+			print("ray",82,55,7)
+			
+			draw_char("egon",30,80)
+			print("egon",30,105,7)
+			
+			draw_char("winston",80,80)
+			print("winston",74,105,7)
+		else
+			draw_char("holtz",30,30)
+			print("holtzmann",20,55,7)
+			
+			draw_char("erin",80,30)
+			print("erin",80,55,7)
+			
+			draw_char("abby",30,80)
+			print("abby",30,105,7)
+			
+			draw_char("patty",80,80)
+			print("patty",78,105,7)
+			
+		end
+		
+		
+		if select_pos==1 then rect(15,20, 60,65, 10) end
+		if select_pos==2 then rect(65,20, 110,65, 10) end
+		if select_pos==3 then rect(15,70, 60,115, 10) end
+		if select_pos==4 then rect(65,70, 110,115, 10) end
+	end
+	
+	
+	
 	cart_control(charselect_update,charselect_draw)
 end
 
-function charselect_update()
-	if btnp(1) then select_pos+=1 end
-	if btnp(0) then select_pos-=1 end
-	if btndp then select_pos+=2 end
-	if btnup then select_pos-=2 end
-	
-	if select_pos<1 then select_pos=1 end
-	if select_pos>4 then select_pos=4 end
-	
-	p_char=selects[select_pos]
-	
-	if btnzp then scene1_init() end
-end
 
-function charselect_draw()
-	rectfill(0,0,127,127,1)
-	
-	center_text("select your ghostbuster",5,7)
-	
-	draw_char("holtz",30,30)
-	print("holtzmann",20,55,7)
-	if select_pos==1 then rect(15,20, 60,65, 10) end
-	
-	draw_char("erin",80,30)
-	print("erin",80,55,7)
-	if select_pos==2 then rect(65,20, 110,65, 10) end
-	
-	
-	draw_char("abby",30,80)
-	print("abby",30,105,7)
-	if select_pos==3 then rect(15,70, 60,115, 10) end
-	
-	draw_char("patty",80,80)
-	print("patty",78,105,7)
-	if select_pos==4 then rect(65,70, 110,115, 10) end
-end
 
 
 
@@ -633,194 +739,413 @@ end
 function game_init()
 	slimers={}
 
-	puft_init()
+	--puft_init()
+	rowan_st=1
+	foo=0
+	foox=130
+	fool=p_lane
+	fooy=lanes[fool]
+	fooang=0
+	footrig=-30
+	
+	function game_update()
+		
+		
+		portal_update()
+		p_update()
+		slimer_update()
+		expl_update()
+		
+		trap_update()
+		puft_update()
+		
+		if current_level==4 then --rowan scales into mirror
+			rowan_jump_update()
+		end
 
+		if p_slime>=40 and puft_st<1 then
+			puft_st=1
+		end
+		
+		if p_slime>=100 then
+			gameover_init()
+		end
+		
+		if #portals<=0 then
+			p_canfire=false
+			
+			if wait(45) then
+				current_level+=1
+				
+				if current_level<6 then
+					scene_init() --continue	
+				else
+					victory_init()
+				end
+				
+			end
+		end
+		
+		if current_level==5 then
+			if foo>=90 then
+				
+				foox-=3.5
+				fooang+=0.1 --distance between crests
+				fooy+=sin(fooang)*1 --height of wave
+				
+				if fool==p_lane and foox<muzzle_x-8 and foox>0 then
+					p_slimed=true
+					p_t=0
+				end
+				
+				
+				if foox<=footrig then
+					foox=130
+					
+					if rnd()<.4 then
+						fool=p_lane
+					else
+						fool=random(1,4)
+					end
+					
+					fooy=lanes[fool]
+					footrig=flr(rnd(90)+60)*-1
+				end
+			end
+			
+			foo+=1
+		end
+
+	end
+
+	
+	
+
+	function game_draw()
+		screenshake()
+		game_drawbg()
+		p_draw()
+		trap_draw()
+		portal_draw()
+		expl_draw()
+		slimer_draw()
+		
+		
+		if current_level==4 then
+			rowan_jump_draw()
+		end
+		
+		if current_level==5 then
+			if foo>=90 then
+				palt(0,false)
+				palt(14,true)
+				zspr(147,4,4,foox,fooy,.9)
+				palt()
+			end
+		end
+	end
+	
+	
+
+	
 	cart_control(game_update,game_draw)
 end
 
-function game_update()
-	meter_update()
-	p_update()
-	slimer_update()
-	expl_update()
-	portal_update()
-	trap_update()
-	puft_update()
 
-	if meter_percent()>70 and puft_st<1 then
-		puft_st=1
-	end
-	
-	if meter_percent()>100 then
-		gameover_init()
-	end
-	
-	if #portals<=0 then
-		current_level+=1
-		if current_level>4 then
-			--rowan_death() --end scene
-		else
-			scene_init() --continue	
-		end
-		
-	end
-end
-
-
-function game_draw()
-	screenshake()
-	game_drawbg()
-	p_draw()
-	trap_draw()
-    portal_draw()
-	expl_draw()
-	slimer_draw()
-	meter_draw()
-end
 
 
 function game_drawbg() 
-	rectfill(0,0,127,127,0)
+		camera(0+cam_x,bglayer1_cy+cam_y)
+		puft_draw(1)
+		palt(0,false)
+		palt(14,true)
+		map(0,0, -60,-2, 16,3) --grey city
+		map(0,0, 44,-2, 16,3) --grey city
+		rectfill(0,20,127,60, 5)
+		skyfade(47,4)
+		palt()
+		
+		camera(0+cam_x,bglayer2_cy+cam_y)
+		puft_draw(2)
+		palt(0,false)
+		palt(14,true)
+		pal(5,2) --red city
+		map(0,0, 0,25, 16,3) --grey city
+		rectfill(0,48,127,127, 2)
+		skyfade(73,8)
+		palt()
+		
+		camera(0+cam_x,0+cam_y)
+		puft_draw(3)
+		palt(0,false)
+		palt(14,true)
+		pal(5,1) --blue city
+		rectfill(0,75,127,127, 1)
+		map(0,0, -30,56, 16,3)
+		map(0,0, 70,53, 16,3)
+		
+		skyfade(110,0)
+		
+		
+		--layers
+		local layer_h=20
+		pal(5,5) 
+		camera(0+cam_x,bglayer1_cy+cam_y)
+		map(0,3, layer1_x,lanes[1]+layer_h, 16,1) --1
+		camera(0+cam_x,bglayer2_cy+cam_y)
+		
+		map(0,3, layer2_x,lanes[2]+layer_h, 16,1) --2
+		camera(0+cam_x,0+cam_y)
+		map(0,3, 0,lanes[3]+layer_h, 16,1) --3
+		map(0,3, 0,lanes[4]+layer_h, 16,1) --4
+		
+		
+		map(0,4, 0,117, 16,1) --4
+		map(0,4, 0,125, 16,1) --4
+		pal()	
+		
+		meter_draw()
+		
+	end
 
-	puft_draw(1)
-	palt(0,false)
-	palt(14,true)
-	map(0,0, -60,-2, 16,3) --grey city
-	map(0,0, 44,-2, 16,3) --grey city
-	rectfill(0,20,127,60, 5)
-	skyfade(47,4)
-	palt()
-	
-	
-	puft_draw(2)
-	palt(0,false)
-	palt(14,true)
-	pal(5,2) --red city
-	map(0,0, 0,25, 16,3) --grey city
-	rectfill(0,48,127,127, 2)
-	skyfade(73,8)
-	palt()
-	
-	puft_draw(3)
-	palt(0,false)
-	palt(14,true)
-	pal(5,1) --blue city
-	rectfill(0,75,127,127, 1)
-	map(0,0, -30,56, 16,3)
-	map(0,0, 70,53, 16,3)
-	
-	skyfade(110,0)
-	
-	
-	--layers
-	local layer_h=20
-	pal(5,5) 
-	map(0,3, 0,lanes[1]+layer_h, 16,1) --1
-	map(0,3, 0,lanes[2]+layer_h, 16,1) --2
-	map(0,3, 0,lanes[3]+layer_h, 16,1) --3
-	map(0,3, 0,lanes[4]+layer_h, 16,1) --4
-	
-	
-	map(0,4, 0,117, 16,1) --4
-	map(0,4, 0,125, 16,1) --4
-	pal()	
-	
-end
 
 
 
 --#victory screen, you win!
 function victory_init()
-	camera()
-	camera_y=0
-	state_ch(1)
+	p_lane=4
+	vic_st=1
+	rowan_x,rowan_y,rowan_a=130,p_y,0
+	
+	function bobbing()
+		rowan_a+=0.02
+		rowan_y=p_y+sin(rowan_a)*4
+	end
+	
+
+	function victory_update()
+		p_y=lanes[p_lane]
+		
+		--p_update()
+		--p_canfire=false
+		
+		trap_update()
+		expl_update()
+		
+		if vic_st==1 then
+			if t==20 then
+				if p_lane==3 then
+					rowan_y=p_y
+					vic_st=2
+				else
+					if p_lane==4 then
+						p_lane=3
+					else
+						p_lane+=1
+					end
+					t=0
+				end
+			end
+		end
+		
+		if vic_st==2 then
+			bobbing()
+			rowan_x=max(70,rowan_x-1)
+			if rowan_x==70 then
+				vic_st=3
+				t=0
+			end
+		end
+		
+		if vic_st==3 then
+			bobbing()
+			if t>30 then vic_st=4 end
+		end
+		
+		
+		if vic_st==4 then
+			--rowan_bob()
+			trap_create(p_lane)
+			vic_st=5 t=0
+			rowan_scale=1
+			
+		end
+		
+		if vic_st==5 then
+			bobbing()
+			if t>30 then
+				vic_st=6
+				t=0
+			end
+		end
+		
+		if vic_st==6 then
+			if t<30 then
+				rowan_x+=1
+				rowan_y-=2
+				rowan_ang = atan2(trap_x+2-rowan_x, trap_y+12-rowan_y)
+				rowan_dx,rowan_dy=dir_calc(rowan_ang,1.5)
+			else
+				rowan_scale=max(0,rowan_scale-.014)
+				rowan_x+=rowan_dx
+				rowan_y+=rowan_dy
+				
+				if t>250 then
+					vic_st=7
+				end
+			end
+		end
+		
+		
+		if vic_st==7 then
+			if layer1_x>-128 then layer1_x-=5 end
+			if layer2_x<128 then layer2_x+=5 end
+			
+			if layer2_x>=128 then
+				if bglayer1_cy>-129 then 
+					bglayer1_cy=min(128,bglayer1_cy-1.6)
+					bglayer2_cy=min(128,bglayer2_cy-1)
+				else 
+					vic_st=8
+					t=50
+					
+					intro_text(";;thank you ghostbusters!;")
+					intro_text(";;the city is once again safe...;")
+					intro_text(";;...for now;")
+					intro_text(";design+code;brian vaughn;@morningtoast;")
+					intro_text(";music+sounds;brian follick;@gnarcade_vgm;")
+					intro_text(";character art;hal laboratory, 1990;;additional art;@morningtoast;")
+					intro_text(";;thanks for playing;")
+					--intro_init(ef)
+				end
+			end
+		end
+		
+		if vic_st==8 then
+			if t==50 then
+				expl_create(rnd(100)+10,rnd(40)+10, 64, {
+					colors={2,3,4,7,8,9,10,11,12,13,14,15},
+					grav=.2,
+					dur=35, --30
+					den=2, --0
+					smin=1, --1
+					smax=2 --1
+				})
+				t=0
+			end
+			
+			if btnxp or btnzp then 
+				if unlocked then
+					title_init() 
+				else
+					unlock_init()
+				end
+			end
+			
+		end
+
+	end
+
+
+	function victory_draw()
+		
+		rectfill(0,0,128,128,0)
+		skyfade(70,2)
+		skyfade(76,8)
+		
+		game_drawbg()
+		camera(0,0)
+		p_draw()
+		trap_draw()
+		expl_draw()
+		
+		if vic_st<6 then
+			rowan_draw(rowan_x,rowan_y)
+		end
+		
+		if vic_st==6 then
+			zspr(147,4,4,rowan_x,rowan_y,rowan_scale)
+		end
+		
+		if vic_st==8 then
+			intro_draw()
+		end
+	end
+
 	cart_control(victory_update,victory_draw)
 end
 
 
 
-function victory_update()
-	expl_update()
-	
-	-- intro wait
-	if st_is(1) and t>60 then
-		st_ch(2)
-	end
-	
-	-- fireworks
-	if st_is(2) then
-		if timer(1,random(30,60),true) then
-			expl_create(rnd(115)+15,rnd(60)+15, 24, {
-				dur=30,
-				den=1,
-				colors={rnd(15)},
-				smin=1,
-				smax=3,
-			})
-		end
-	
-		if t>150 then
-			st_add(3)
-		end
-	end
-	
-	-- pan camera down to show city and character
-	if st_is(3) then
-		camera_y+=1
-		if camera_y>100 then
-			st_rm(3)
-			st_add(4)
-		end
-	end
 
-	-- state4 is in draw(), text timer
-	
+-- #unlock - unlock bonus characters
+function unlock_init()
+	-- @sound bonus sound
+	unlocked=true
+	cart_control(ef,unlock_draw)
 end
 
-
-
-function victory_draw()
-	expl_draw()
+function unlock_draw()
+	center_text("who you gonna call?",20,8)
+	center_text("classic 1984 mode unlocked",35,10)
+	center_text("use \131\148 to switch modes",60,6)
+	center_text("at the title screen",68,6)
 	
-	camera(0,camera_y)
-
+	center_text("press \142 to continue",85,6)
 	
-	pal(5,2) --red city
-	palt(14,true)
-	rectfill(0,144+18,127,144+18+80, 2)
-	map(0,0, -20,144, 16,3)
-	map(0,0, 80,144, 16,3)
-	pal()
-	
-	
-	
-	pal(5,1) --blue city
-	palt(14,true)
-	rectfill(0,130+22,127,130+22+127, 1)
-	map(0,0, -30,130, 16,3)
-	map(0,0, 40,130, 16,3)
-	pal()
-	
-	skyfade(130+95,0)
-	
-	
-	draw_char(p_char, 10,187)
-	
-	
-	if st_is(4) then
-		if timer(2,90) then
-			center_text("thank you ghostbusters",200, 7)
-		end
-	end
+	if btnzp or btnxp then title_init() end
 end
-
-
-
 
 
 --#over, game over screen
 function gameover_init()
 	slimedrop={}
+	
+	
+	function gameover_update()
+		--meter_update()
+		slimer_update()
+		expl_update()
+		trap_update()
+		puft_update()
+		
+		slimedrop_min=999
+		for s in all(slimedrop) do
+			s.y+=rnd(1)+1
+			
+			if s.y<slimedrop_min then slimedrop_min=s.y end
+			
+			if s.y>130 then s.y=130 end
+		end
+		
+		if slimedrop_min>130 then
+			if btnzp or btnxp then title_init() end
+		end
+		
+	end
+
+
+	function gameover_draw()
+		game_drawbg()
+		p_draw()
+		trap_draw()
+		portal_draw()
+		expl_draw()
+		slimer_draw()
+
+		for s in all(slimedrop) do
+			circfill(s.x,s.y,s.r,11)
+		end
+
+		rectfill(-8,0, 130,slimedrop_min+3, 11)
+		
+		if slimedrop_min>130 then
+			center_text("game over",30,3)
+			center_text("you stopped "..kills.." ghosts",40,3)
+			center_text("press \142 to play again",85,3)
+		end
+	end
+	
 	
 	cart_control(gameover_update,gameover_draw)
 	
@@ -831,55 +1156,20 @@ function gameover_init()
 	slimedrop_min=0
 end
 
-function gameover_update()
-	
-	meter_update()
-	slimer_update()
-	expl_update()
-	trap_update()
-	puft_update()
-	
-	slimedrop_min=999
-	for s in all(slimedrop) do
-		s.y+=rnd(1)+1
-		
-		if s.y<slimedrop_min then slimedrop_min=s.y end
-		
-		if s.y>130 then s.y=130 end
-	end
-	
-	if slimedrop_min>130 then
-		if btnzp or btnxp then title_init() end
-	end
-	
-end
 
-
-function gameover_draw()
-	game_drawbg()
-	p_draw()
-	trap_draw()
-    portal_draw()
-	expl_draw()
-	slimer_draw()
-	meter_draw()
-	
-	
-	for s in all(slimedrop) do
-		circfill(s.x,s.y,s.r,11)
-	end
-
-	rectfill(-8,0, 130,slimedrop_min+3, 11)
-	
-	if slimedrop_min>130 then
-		center_text("game over",60,3)
-		center_text("press \142 to play again",85,3)
-	end
-end
 
 
 
 --#rowan
+function rowan_reset()
+	rowan_y=-50
+	rowan_x=50
+	rowan_a=0
+	rowan_next=fn	
+	rowan_st=1
+	rowan_scale=32
+end
+
 function rowan_draw(x,y)
 	x=x or rowan_x
 	y=y or rowan_y
@@ -890,83 +1180,115 @@ function rowan_draw(x,y)
 	palt()
 end
 
-function rowan_reset(fn)
-	rowan_y=-50
-	rowan_x=50
-	rowan_a=0
-	rowan_next=fn
-	
-	st_clear(90)
-	st_add(90)
+function rowan_bob()
+	rowan_a+=0.02
+	rowan_y = 35+sin(rowan_a)*4
 end
 
+-- level 3 jump into mirrors
+function rowan_jump_update()
+
+	if rowan_st==1 then
+		rowan_pick=rnd_table(portals)
+		rowan_stopmin=lanes[rowan_pick.lane]-5
+		rowan_stopmax=lanes[rowan_pick.lane]+5
+		
+		local ang = atan2(rowan_pick.x+8-rowan_x, rowan_pick.y+4-rowan_y)
+		rowan_dx,rowan_dy=dir_calc(ang,2.25)
+		rowan_scale=32
+		
+		rowan_st=2
+	end
+	
+	if rowan_st==2 then
+	
+		rowan_y+=rowan_dy
+		rowan_x+=rowan_dx
+		rowan_scale-=1
+		
+		if rowan_scale<=0 then
+			rowan_st=2.1
+			portals[rowan_pick.lane].jump=true
+		end
+	end
+	
+	if rowan_st==3 then
+		rowan_bob()
+	end
+	
+	
+	
+end
+
+
+function rowan_jump_draw()
+	if rowan_scale>0 then
+		palt(0,false)
+		palt(14,true)
+		sspr(24,72, 32,32, rowan_x,rowan_y, rowan_scale,rowan_scale)
+		palt()
+	end
+
+end
+
+
+-- scene entrance
 function rowan_entrance_update()
 	tbx_update()
 	
 	--rowan comes down
-	if st_is(90) then
-		if rowan_y<35 then rowan_y+=1 else st_chg(91) end
+	if rowan_st==1 then
+		if rowan_y<35 then rowan_y+=1 else rowan_st=2 end
 	end
 	
-	--rowan text, wait for player to continue
-	if st_is(91) then
-		rowan_a+=0.02
-		rowan_y = 35+sin(rowan_a)*4
+	--bob when it reaches the bottom, wait a bit then talk
+	if rowan_st==2 then
+		rowan_bob()
+		if wait(40,true) then
+			rowan_st=3
+			textbox(level.rowan_text,14,68,7)
+		end
+	end
+	
+	--talk while bobbing
+	if rowan_st==3 then
+		rowan_bob()
 		
-		if not st_is(91.1) then
-			if wait(60,true) then
-				st_add(91.1)
+		if btnzp then rowan_st=4 end
+	end
+	
+	if rowan_st==4 then
+		rowan_bob()
+		if wait(25,true) then
+			rowan_st=5
+		end
+	end
+	
+	if rowan_st==5 then
+		if current_level!=4 then --float up out of screen to start play
+			if rowan_y>-50 then
+				rowan_y-=2
+			else
+				if current_level==5 then
+					portal_jump_pick(99)
+				end
+			
+				game_init()
 			end
 		else
-			if st_is(91.2) then
-				if btnzp then st_chg(92) end
-			else
-				textbox(rowan_text,14,68,7)
-				st_add(91.2)
-			end
+			game_init()
 		end
-		
-	end
-	
-	--rowan leaves after player continues from textbox (92)
-	if st_is(92) then
-		-- Levels 1 and 2; Normal up and out exit
-		if current_level<=2 then
-			if wait(60) then
-				if rowan_y>-50 then
-					rowan_y-=1
-				else
-					rowan_next()
-				end
-			else
-				rowan_a+=0.02
-				rowan_y = 35+sin(rowan_a)*4
-			end
-		end
-	
-		-- Level 3, jumps into frames
-		if current_level==3 then
-			
-		end
-		
-		-- Level 4...grows? 
-		if current_level==4 then
-			
-		end
-			
-	end
 
+	end
 end
 
 function rowan_entrance_draw()
 	rowan_draw()
 	
-	if st_is(91.1) then
+	if rowan_st==3 then
 		draw_textbox()
 		tbx_draw()
-	end
-	
-	if st_is(91.2) then
+		
 		if tbx_finish() then
 			print("\142",107,97,7) 
 		end
@@ -986,67 +1308,89 @@ function scene_reset()
 	p_canfire=false
 	p_slimed=false
 	firing=false
-	meter_vnow=0 --reset slime meter for each level
 end
 
-
+--#levels
 levels={
-	{ -- Level 1
-		portal_hp=30,
-		portal_spawn=15,
-		slimer_hp=7,
+	{ -- level 1
+		portal_hp=50,
+		portal_spawn=60,
+		portal_offset={36,24,12,0},
+		slimer_hp=10,
+		--slimer_atk=10, -- slime to add when they escape
 		slimer_speed=.5,
 		slimer_max=7,
-		rowan_text="these frames will allow ghosts to enter and take over the world. you won't stop me!"
+		rowan_text="these portals will let my ghosts enter your world. the city shall be ours!"
 	},
-	{ -- Level 2
-		portal_hp=30,
-		portal_spawn=15,
-		slimer_hp=7,
-		slimer_speed=.5,
-		slimer_max=7,
-		rowan_text="impressive. but i have more frames and stronger ghosts. the end is near!"
+	{ -- level 2
+		portal_hp=50,
+		portal_spawn=50,
+		portal_offset={0,12,24,36},
+		slimer_hp=10,
+		slimer_speed=.6,
+		slimer_max=10,
+		--slimer_atk=15,
+		rowan_text="haa, haa, haa... think that's all? wrong! there's more where that came from. attack!"
 	},
-	{ -- Level 3
-		portal_hp=30,
-		portal_spawn=15,
-		slimer_hp=7,
-		slimer_speed=.5,
-		slimer_max=7,
-		rowan_text="arg! i must help my ghost army. you can't stop us all!"
+	{ -- level 3
+		portal_hp=50,
+		portal_spawn=50,
+		portal_offset={36,12,12,36},
+		slimer_hp=10,
+		slimer_speed=.75,
+		slimer_max=8,
+		--slimer_atk=20,
+		rowan_text="impressive. but i have more portals and evil spirits. prepare to meet your doom!"
 	},
-	{ -- Level 4
-		portal_hp=30,
-		portal_spawn=15,
-		slimer_hp=7,
+	{ -- level 4, jumping mirrrs
+		portal_hp=50,
+		portal_spawn=50,
+		portal_offset={0,0,0,0},
+		slimer_hp=10,
 		slimer_speed=.5,
-		slimer_max=7,
-		rowan_text="what?! no! i'll stop you myself, ghostbusters!"
+		slimer_max=10,
+		rowan_text="i must help my ghost army. the end is near, ghostbusters. you can't stop us all!"
+	},
+	{ -- level 5, boss fight
+		portal_hp=50,
+		portal_spawn=50,
+		portal_offset={0,0,0,0},
+		slimer_hp=6,
+		slimer_speed=.8,
+		slimer_max=8,
+		rowan_text="i guess if you want to take over the world, you have to do it yourself."
 	}
 }
 
 function scene_init()
 	level=levels[current_level]
-
+	
+	wait_reset()
 	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
+	--rowan_st=5 --#debug
+	
+	function scene_update()
+		rowan_entrance_update()
+		expl_update()
+	end
+
+	function scene_draw()
+		game_drawbg()
+		p_draw()
+		
+		portal_draw()
+		expl_draw()
+		
+		rowan_entrance_draw()
+		rowan_draw()
+	end
 
 	cart_control(scene_update,scene_draw)
 end
 
-function scene_update()
-	rowan_entrance_update()
-end
 
-function scene_draw()
-	game_drawbg()
-	p_draw()
-	meter_draw()
-	portal_draw()
-	
-	rowan_entrance_draw()
-end
 
 
 
@@ -1061,11 +1405,11 @@ end
 -- #intro
 function boot_init()
 	play_music(0)
-	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code+art;brian vaughn;_;music+sound;brian follick;_;additional art;unofficial sources;")
+	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;_;music+sound;brian follick;_;")
 	intro_text("_;_;_;for penelope;")
 	intro_init(title_init)
 
-	cart_update,cart_draw=ef,intro_draw
+	cart_control(ef,intro_draw)
 end
 
 
@@ -1082,13 +1426,37 @@ function title_init()
 	city2_y=130
 	city2_ystop=30
 	
+	bglayer1_cy=0
+	bglayer2_cy=0
+
+	layer1_x=0
+	layer2_x=0	
+	
+	cam_x,cam_y=0,0
+	
 	cart_control(title_update,title_draw)
 	
-	p_reset()
+	p_lane=2
+	p_x,p_y,p_dir=2,lanes[p_lane],1
+	p_power=0
+	p_slime=0
+	p_cooldown=0
+	p_slimed=false
+	p_canmove=true
+	p_canfire=true
+	p_invincible=0
+	kills=0
+	--meter_vnow=0
+	
+	fire_w=0
+	fire_t=0 --needed for sine wave	
+	
+	--p_reset()
 	puft_init()
 	puft_y=25
 	
-	current_level=1
+	current_level=1 --debug
+	--meter_vnow=0
 end
 
 function title_update() 
@@ -1098,7 +1466,10 @@ function title_update()
 	if sspr_wh>64 then sspr_wh=64 end
 	if logo_xy<26 then logo_xy=26 end
 	
-	if btnzp then charselect_init() end
+	if btnzp then 
+		puft_st=0
+		charselect_init() 
+	end
 	
 	if t>20 then
 		if city1_y>city1_ystop then city1_y-=1 end
@@ -1117,6 +1488,11 @@ function title_update()
 	end
 	
 	if t<1000 then t+=1 end
+	
+	if (btnup or btndp) and unlocked then
+		charmode+=1
+		if charmode>1 then charmode=0 end
+	end
 end
 
 function title_draw()
@@ -1143,12 +1519,19 @@ function title_draw()
 	
 	
 	palt(14,true)
+	palt(0,false)
 	sspr(24,40, 32,32, logo_xy+4,logo_xy-15, sspr_wh,sspr_wh)
 	pal()
 	
 	if sspr_wh>=64 then
 		spr(87, 30,logo_xy+38, 9,3)
-		center_text("makes me feel good",90,11)
+		
+		if charmode>0 then
+			center_text("who you gonna call?",90,8)
+		else
+			center_text("makes me feel good",90,11)	
+		end
+
 		center_text("press \142 to start",108,7)
 	end
 end
@@ -1159,35 +1542,39 @@ end
 
 
 -- #loop
+
+ --load savedata
+cartdata("bustin2017")
+unlocked = dget("modeunlock")
+
+-- Pause menu options
 menuitem(1, "toggle music", function() 
 	if musicon then musicon=false music(-1) else musicon=true play_music(0) end
 end)	
 
 
 function _init()
+	printh("boot =====================================")
+
 	tbx_init()
 	
-	--charselect_init()
-	--boot_init()
-	title_init()
-	--game_init()
-	--scene1_init()
-	--gameover_init()
+	boot_init()
+	--title_init()
 end
 
 function _update()
-	btnl=btn(0)
-	btnr=btn(1)
+	--btnl=btn(0)
+	--btnr=btn(1)
 	btnup=btnp(2)
 	btndp=btnp(3)
 	btnz=btn(4)
-	btnx=btn(5)
+	--btnx=btn(5)
 	btnzp=btnp(4)
 	btnxp=btnp(5)
 	
 	cart_update()
 	
-	
+	t=min(32000,t+1)
 end
 
 
@@ -1198,7 +1585,9 @@ function _draw()
 	cart_draw()
 	
 	--rect(0,0,127,127,5)
-	print(debug,1,100,10)
+	--local dbmem=flr((stat(0)/1024)*100).."%m / "..flr(((flr(stat(1)*100))/200)*100).."%c"
+	--print(dbmem,70,0,8)
+	if debug then print(debug,1,100,10) end
 end
 
 
@@ -1208,10 +1597,31 @@ end
 
 
 -- #utilities and helpers
+ef=function() end
+cart_control=function(u,d)
+	cart_update,cart_draw=u,d
+	t=0
+end
+
+
+function zspr(n,w,h,dx,dy,dz)
+  sx = 8 * (n % 16)
+  sy = 8 * flr(n / 16)
+  sw = 8 * w
+  sh = 8 * h
+  dw = sw * dz
+  dh = sh * dz
+
+  sspr(sx,sy,sw,sh, dx,dy,dw,dh)
+end
+
+
 shake,shake_t=0,0
+
 function screenshake()
 	cam_x=0 cam_y=0
 	if shake>0 then
+		
 		local shaker=1
 		if rnd()<.5 then shaker=-random(1,2) end
 		
@@ -1219,10 +1629,13 @@ function screenshake()
 		cam_y+=shaker*rnd_table({-1,1,-1,1})
 
 		shake_t+=1
-		if shake_t>3 then shake=0 shake_t=0 end
+		if shake_t>3 then 
+			shake=0
+			shake_t=0 
+		end
 	end
 	
-	camera(cam_x,cam_y)
+	--camera(cam_x,cam_y)
 end
 
 
@@ -1246,6 +1659,14 @@ end
 function st_is(st) 
 	if in_table(states, st) then return true else return false end
 end
+function st_debug()
+	local t=""
+	for n in all(states) do
+		t=n.."-"..t
+	end
+	return t
+end
+
 
 timers={}
 function timer_set(t) timers[t]=0 end
@@ -1290,6 +1711,7 @@ function wait(max,reset)
 		return true
 	end
 end
+function wait_reset() wait_t=0 end
 
 
 --text drawing
@@ -1678,22 +2100,22 @@ end
 
 
 __gfx__
-000000000000000000000000eee4444444444444eeeeeeeeeeeeeeeeeeeee33333eeeeee555555550000000055555555eeeeeeeeeeeeeeee0000000000000000
-000000000000000000000000eee4222222222225eeeeeeeeeeeeeeeeeeee33bbb33eeeee525252526666666659595555eeeeeeeeeeeeeeee0000000000000000
-007007000000000000000000eee42ddddddddd15eeeeeeeeeeeeeeeeeee33bbabb33eeee222222224444444454545555eeeeeeeeeeeeeeee0000000000000000
-000770000000000000000000eee42d9990fffd15eeeeeeeeeeeeeeeee333bbaabbb33eee44444444000000005555555555555555eee55eee0000000000000000
-000770000000000000000000eee42d09900ffd15eeeeeeeeeeeeeeeee3baabbbbbbb3eee44444444444404445555595955595955ee5555ee0000000000000000
-007007000000000000000000eee42d009900fd15000eeeeeeeeeeeee3337bbbbbbbb33eed4d4d4d4888808885555545455545455e555555e0000000000000000
-000000000000000000000000eee42d0009900d15050eeeeeeeeeeeee333773bb3bbbb3eedddddddd000000005555555555555555555555550000000000000000
-000000000000000000000000eee42d0c00000d1505000eeeeeeeeeee33b07bbbb3bbb3ee55555555eeeeeeee5555555555555555555555550000000000000000
-000000000000000000000000eee42d00ccc00d15050000eeeeeeeeeee3bbbb3bb3bbb3eeeeeeeeee440444445555555500000000333333330000000000000000
-000000000000000000000000eee42d800ccc0d15055000eeeeeeeeeee333333bbbbbb33eeeeeeeee440444445555555500000000333333330000000000000000
-000000000000000000000000eee42d808ccccd1505000000eeeeee0ee3b33bbbbbbbbb33eeeeeeee880888885555555500000000333333330000000000000000
-000000000000000000000000eee42d8800cccd150005000000000060e3bbab33b3bbb3b3eeeeeeee000000005555555500000000333333330000000000000000
-eeeeeeeeeeeeeeee00000000eee42d8800cccd150500000000000000e33333bab3bbbbb3eeeeeeee444440445555555500000000333333330000000000000000
-eeeee000000e00ee00000000eee42ddddddddd15000000660000000ee3bbaaab3bbbbbb3eeeeeeee444440445555555500000000333333330000000000000000
-eeee0aaaaaa55a0e00000000eee411111111111500000909990900eee33bbbbb3bbb3bb3eeeeeeee888880885555555500000000333333330000000000000000
-eee05aaaaa5575a000000000eee4555555555555e0e00006666660eeee33bb33abb3bbb3eeeeeeee000000005555555500000000333333330000000000000000
+0000000000000000000000004444444444445eeeeeeeeeeeeeeeeeeeeeeee33333eeeeee555555550000000055555555eeeeeeeeeeeeeeee0000000000000000
+0000000000000000000000004222222222215eeeeeeeeeeeeeeeeeeeeeee33bbb33eeeee525252526666666659595555eeeeeeeeeeeeeeee0000000000000000
+00700700000000000000000042ddddddddd15eeeeeeeeeeeeeeeeeeeeee33bbabb33eeee222222224444444454545555eeeeeeeeeeeeeeee0000000000000000
+00077000000000000000000042d9990fffd15eeeeeeeeeeeeeeeeeeee333bbaabbb33eee44444444000000005555555555555555eee55eee0000000000000000
+00077000000000000000000042d09900ffd15eeeeeeeeeeeeeeeeeeee3baabbbbbbb3eee44444444444404445555595955595955ee5555ee0000000000000000
+00700700000000000000000042d009900fd15eee000eeeeeeeeeeeee3337bbbbbbbb33eed4d4d4d4888808885555545455545455e555555e0000000000000000
+00000000000000000000000042d0009900d15eee050eeeeeeeeeeeee333773bb3bbbb3eedddddddd000000005555555555555555555555550000000000000000
+00000000000000000000000042d0c00000d15eee05000eeeeeeeeeee33b07bbbb3bbb3ee55555555eeeeeeee5555555555555555555555550000000000000000
+00000000000000000000000042d00ccc00d15eee050000eeeeeeeeeee3bbbb3bb3bbb3eeeeeeeeee440444445555555500000000333333330000000000000000
+00000000000000000000000042d800ccc0d15eee055000eeeeeeeeeee333333bbbbbb33eeeeeeeee440444445555555500000000333333330000000000000000
+00000000000000000000000042d808ccccd15eee05000000eeeeee0ee3b33bbbbbbbbb33eeeeeeee880888885555555500000000333333330000000000000000
+00000000000000000000000042d8800cccd15eee0005000000000060e3bbab33b3bbb3b3eeeeeeee000000005555555500000000333333330000000000000000
+eeeeeeeeeeeeeeee0000000042d8800cccd15eee0500000000000000e33333bab3bbbbb3eeeeeeee444440445555555500000000333333330000000000000000
+eeeee000000e00ee0000000042ddddddddd15eee000000660000000ee3bbaaab3bbbbbb3eeeeeeee444440445555555500000000333333330000000000000000
+eeee0aaaaaa55a0e000000004211111111115eee00000909990900eee33bbbbb3bbb3bb3eeeeeeee888880885555555500000000333333330000000000000000
+eee05aaaaa5575a0000000004555555555555eeee0e00006666660eeee33bb33abb3bbb3eeeeeeee000000005555555500000000333333330000000000000000
 e00aa5aa55575a0e00000000eeee111eeeeeeeeee0e0000006660eeeee3baababb3abb33eeeeeeeeeeeeeeeeee666666eeeeeeee333333330000000000000000
 00aaaa55a00000ee00000000ee11671eeeeeeeeeee00006666600eeeee33bbbb33ab3b33eeeeeeeeeeeeeeeee67a7a7a6eeeeeee333333330000000000000000
 050aaaaa0ffff0ee00000000e1c6771eeeeeeeeeeeeee0066600eeeeeee3333333a3b33eeeeeeeeeeeeeeeeee5a7a7a75eeeeeee333333330000000000000000
@@ -1750,38 +2172,38 @@ eeeeee000000eeee00000000e1677ccccccc7761e3b3e3bbb3eee3ee000000000000000000000000
 000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeeeee000eeeeeeeeeeeeeeeee000000e00eeeee000eeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeee0077700eeeeeeeeeeeeee0aaaaaa55a0eee04440e0000000ee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeee0777777700eeeeeeeeeee05aaaaa5575a0ee04444044444440e0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeee077776677770eeeeeeee00aa5aa55575a0eee04442444444440e0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeee07777777600770eeeeeee0aaaa55a00000eeeee042444400000ee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeee070777070ee00eeeeeeeee0aaaaa0ffff0eeeeee044400ffff0ee0000000000000000000000000000000000000000
-000000000000000000000000ee0eeeeeeee077070770eeeeeeee0eeee0aaaaa0f0000eeeeee0440ffff000ee0000000000000000000000000000000000000000
-000000000000000000000000e070ee0eeee077878770eeee0ee070eeee0aa0a0ffcf0eeeeee04000000f30ee0000000000000000000000000000000000000000
-000000000000000000000000ee070070eee077777770eee070070eeeeee00f0fff7f0eeeeee00f0fff0f70ee0000000000000000000000000000000000000000
-000000000000000000000000e000770eee07707070770eee077000eeeeee0fffffff0eeeeeee0ffffff000ee0000000000000000000000000000000000000000
-0000000000000000000000000777770eee07770707770eee0777770eeeeee00ffff00eeeeeee00fffffff0ee0000000000000000000000000000000000000000
-000000000000000000000000e00777700076777777767000777700eeeeeeeee0000eeeeeeeeeee0ffff00eee0000000000000000000000000000000000000000
-000000000000000000000000ee066777777767877877777777660eeeeeeeeeeeeeeeeeeeeeeeeee0000eeeee0000000000000000000000000000000000000000
-000000000000000000000000e06006777777777887777777660060eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000ee0ee000666777877877766000ee0eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeee000677777777700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeee077777777760eeeeeeeeeeee000e00000eeeeeeeeeeeee000eeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeee067777777770eeeeeeeeeee044404444400eeeeeeee0002020eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeee0677777777770eeeeeeeee04442444444440eeeee0020200000eee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeee0677777777770eeeeeeeee044244444444440eee02000020000eee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeee0677677777770eeeeeeeee020444440000440eee00200000000eee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeee067767777770eeeeeeeee04042420ffff040ee02000044440eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeee067767767770eeeeeeeee02024240f00000eee00000040000eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeee07777776770eeeeeeeeee0402020ffdf0eeeee0400044140eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeee067677777770eeeeeeeee0200f0fff7f0eeeeee040444f40eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeee067767767770eeeeeeeee0200fffffff0eeeeee044444440eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeee0677767677770eeeeeeeee0ee00ffff00eeeeeee00444400eeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeee0667777677770000eeeeeeeeee0000eeeeeeeeeee0000eeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeee0066777677777770eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeeeee0077776677700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeeeeeee007777700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
-000000000000000000000000eeeeeeeeeeeeeeeeeeee00000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000
+000000000000000000000000eeeeeeeeeeeeeeee000eeeeeeeeeeeeeeeee000000e00eeeee000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeeeeeeeee0077700eeeeeeeeeeeeee0aaaaaa55a0eee04440e0000000eeeeee000000000eeeee0000000000eeee00000000
+000000000000000000000000eeeeeeeeeeeee0777777700eeeeeeeeeee05aaaaa5575a0ee04444044444440eeee04404444000eee00000001100eeee00000000
+000000000000000000000000eeeeeeeeeeee077776677770eeeeeeee00aa5aa55575a0eee04442444444440eee0440f0440ff0eee0000001000eeeee00000000
+000000000000000000000000eeeeeeeeeee07777777600770eeeeeee0aaaa55a00000eeeee042444400000eeee040fff00fff0ee00000000000eeeee00000000
+000000000000000000000000eeeeeeeeeee070777070ee00eeeeeeeee0aaaaa0ffff0eeeeee044400ffff0eeee0440fffffff0ee0010000fff0eeeee00000000
+000000000000000000000000ee0eeeeeeee077070770eeeeeeee0eeee0aaaaa0f0000eeeeee0440ffff000eeee04440ffff000ee01000fffff0eeeee00000000
+000000000000000000000000e070ee0eeee077878770eeee0ee070eeee0aa0a0ffcf0eeeeee04000000f30eeee04200ffffcf0ee01000000000eeeee00000000
+000000000000000000000000ee070070eee077777770eee070070eeeeee00f0fff7f0eeeeee00f0fff0f70eeee020f0ffff7f0ee000f0fff0f00eeee00000000
+000000000000000000000000e000770eee07707070770eee077000eeeeee0fffffff0eeeeeee0ffffff000eeeee00ffffffff0ee00ffffff00f00eee00000000
+0000000000000000000000000777770eee07770707770eee0777770eeeeee00ffff00eeeeeee00fffffff0eeeeeee00ffff00eeee00fffffffff0eee00000000
+000000000000000000000000e00777700076777777767000777700eeeeeeeee0000eeeeeeeeeee0ffff00eeeeeeeeee0000eeeeeeee00fffff00eeee00000000
+000000000000000000000000ee066777777767877877777777660eeeeeeeeeeeeeeeeeeeeeeeeee0000eeeeeeeeeeeeeeeeeeeeeeeeee00000eeeeee00000000
+000000000000000000000000e06006777777777887777777660060eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000ee0ee000666777877877766000ee0eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeee000677777777700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeeeee077777777760eeeeeeeeeeee000e00000eeeeeeeeeeeee000eeeeeeeee00000000eeeeee000000000eeeee00000000
+000000000000000000000000eeeeeeeeee067777777770eeeeeeeeeee044404444400eeeeeeee0002020eeeeeee04444445500eee0000000000eeeee00000000
+000000000000000000000000eeeeeeeeee0677777777770eeeeeeeee04442444444440eeeee0020200000eeeee054444455750ee00000000000eeeee00000000
+000000000000000000000000eeeeeeeeee0677777777770eeeeeeeee044244444444440eee02000020000eeee04255455575f0ee00000000440eeeee00000000
+000000000000000000000000eeeeeeeeee0677677777770eeeeeeeee020444440000440eee00200000000eeee044225000555eee00004444440eeeee00000000
+000000000000000000000000eeeeeeeeeee067767777770eeeeeeeee04042420ffff040ee02000044440eeeee044440fffff0eee00004444440eeeee00000000
+000000000000000000000000eeeeeeeeeee067767767770eeeeeeeee02024240f00000eee00000040000eeeee044400ff0000eee00000440000eeeee00000000
+000000000000000000000000eeeeeeeeeeee07777776770eeeeeeeeee0402020ffdf0eeeee0400044140eeeee0440f0fffcf0eee00440444140eeeee00000000
+000000000000000000000000eeeeeeeeeeee067677777770eeeeeeeee0200f0fff7f0eeeeee040444f40eeeeee00ff0fff7f0eee00440444f40eeeee00000000
+000000000000000000000000eeeeeeeeeeee067767767770eeeeeeeee0200fffffff0eeeeee044444440eeeeeee0ffffffff0eeee0004444440eeeee00000000
+000000000000000000000000eeeeeeeeeeee0677767677770eeeeeeeee0ee00ffff00eeeeeee00444400eeeeeeee000ffff00eeeeeee0444400eeeee00000000
+000000000000000000000000eeeeeeeeeeeee0667777677770000eeeeeeeeee0000eeeeeeeeeee0000eeeeeeeeeeeee0000eeeeeeeeee0000eeeeeee00000000
+000000000000000000000000eeeeeeeeeeeeee0066777677777770eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeeeeeeeeeee0077776677700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeeeeeeeeeeeee007777700eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+000000000000000000000000eeeeeeeeeeeeeeeeeeee00000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
