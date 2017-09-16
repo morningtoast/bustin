@@ -5,10 +5,19 @@ version="1.0"
 screen_x,screen_y,screen_w,screen_h=0,0,127,127
 
 -- bustin'
--- 2017, brian vaughn
+-- brian vaughn, 2017
 
 -- follow @morningtoast
--- check out my other Pico-8 games: https://www.lexaloffle.com/bbs/?uid=12806&mode=carts
+-- please check out my other Pico-8 games online or on the PocketCHIP:
+-- https://www.lexaloffle.com/bbs/?uid=12806&mode=carts
+--
+-- Bullet Cave
+-- Bunyan's Rage
+-- Bustin'
+-- BuzzKill
+-- Invader Overload
+-- Mass 360
+
 
 
 musicon=true
@@ -1015,11 +1024,12 @@ function victory_init()
 					intro_text(";;thank you ghostbusters!;")
 					intro_text(";;the city is once again safe...;")
 					intro_text(";;...for now;")
+					intro_text(";;design+code;@morningtoast;")
+					intro_text(";;music+sounds;@gnarcade_vgm;")
+					intro_text(";;character art;hal laboratory, 1990;;additional art;@morningtoast;@beetleinthebox;")
 					intro_text(";;you busted"..kills.."ghosts;")
-					intro_text(";design+code;@morningtoast;")
-					intro_text(";music+sounds;@gnarcade_vgm;")
-					intro_text(";character art;hal laboratory, 1990;;additional art;@morningtoast;@beetleinthebox;")
 					intro_text(";;thanks for playing;")
+					intro_text(";;please try other games from @morningtoast;")
 					intro_init(ef)
 				end
 			end
@@ -1386,8 +1396,7 @@ function scene_init()
 	scene_reset()
 	portal_reset()
 	rowan_reset(game_init)
-	--rowan_st=5 -- @debug
-	
+
 	function scene_update()
 		rowan_entrance_update()
 		expl_update()
@@ -1422,7 +1431,7 @@ end
 -- #intro
 function boot_init()
 	play_music(0)
-	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;_;music+sound;brian follick;_;")
+	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;@morningtoast;_;music+sound;brian follick;@gnarcade_vgm;")
 	intro_text("_;_;_;for penelope;")
 	intro_init(title_init)
 
