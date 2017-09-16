@@ -22,7 +22,7 @@ screen_x,screen_y,screen_w,screen_h=0,0,127,127
 
 musicon=true
 lanes={3,32,61,90}
-unlocked=false
+unlocked=0
 charmode=0 --0=girls,1=boys
 p_t=0
 p_char="holtz"
@@ -226,13 +226,16 @@ function slimer_update()
 
 			-- slime player
 			if s.lane==p_lane and s.x<muzzle_x-8 and s.x>0 and p_invincible<1 then
+				if not p_slimed then sfx(4) end
 				p_slimed=true
 				p_t=0
+				
+				
 			end
 
 			if s.x<-16 then
 				p_slime=min(p_slime+5,100) -- add to slime meter
-				del(slimers,obj)
+				del(slimers,s)
 			end
 		end
 		
@@ -317,7 +320,7 @@ function portal_reset()
 	end
 	
 	last_portal=0
-	portal_spawn=random(20,level.portal_spawn)
+	portal_spawn=random(15,level.portal_spawn)
 	timer_set("portalspawn")
 end
 
@@ -392,6 +395,7 @@ function portal_update()
 				if p.x>50 then
 					if p.jt==0 then 
 						-- @sound of jumping portal
+						
 					end
 					
 					if p.jt>45 and p.jt<60 then --
@@ -399,12 +403,15 @@ function portal_update()
 						p.ang+=.16 --distance between crests
 						p.y+=sin(p.ang)*1 --height of wave
 						p.isjumping=true
+						
+						if p.jt==46 or p.jt==55 then sfx(5) end
 					end
 
 					if p.jt==210 then
 						p.isjumping=false
 						p.jt=0
 						p.ang=0
+						
 					end
 
 					p.jt+=1
@@ -428,7 +435,7 @@ function portal_update()
 			end
 
 			last_portal=spawnfrom.lane
-			portal_spawn=random(20,level.portal_spawn)
+			portal_spawn=random(15,level.portal_spawn)
 			
 			if #portals==1 then
 				portal_spawn=60
@@ -941,7 +948,6 @@ function victory_init()
 
 	function victory_update()
 		p_y=lanes[p_lane]
-		debug=unlocked
 		trap_update()
 		expl_update()
 		
@@ -1020,16 +1026,17 @@ function victory_init()
 				else 
 					vic_st=8
 					t=50
-					
-					intro_text(";;thank you ghostbusters!;")
-					intro_text(";;the city is once again safe...;")
-					intro_text(";;...for now;")
-					intro_text(";;design+code;@morningtoast;")
-					intro_text(";;music+sounds;@gnarcade_vgm;")
-					intro_text(";;character art;hal laboratory, 1990;;additional art;@morningtoast;@beetleinthebox;")
-					intro_text(";;you busted"..kills.."ghosts;")
-					intro_text(";;thanks for playing;")
-					intro_text(";;please try other games from @morningtoast;")
+					printh("end credits")
+					--intro_all={}
+					intro_text(";_;thank you ghostbusters!;")
+					intro_text(";_;the city is once again safe...;")
+					intro_text(";_;...for now;")
+					intro_text("design+code;@morningtoast;")
+					intro_text("music+sounds;@gnarcade_vgm;")
+					intro_text("character art;hal laboratory, 1990;;additional art;@morningtoast;@beetleinthebox;")
+					intro_text(";_;you busted "..kills.." ghosts;")
+					intro_text(";_;thanks for playing;")
+					intro_text(";_;please try other games;from @morningtoast;")
 					intro_init(ef)
 				end
 			end
@@ -1100,10 +1107,9 @@ end
 
 -- #unlock - unlock bonus characters
 function unlock_init()
-	-- @sound bonus sound
 	t=0
-	unlocked=true
-	dset("modeunlock",true)
+	unlocked=1
+	dset(0,true)
 
 	cart_control(ef,unlock_draw)
 end
@@ -1358,7 +1364,7 @@ levels={
 		slimer_hp=10,
 		slimer_speed=.6,
 		slimer_max=10,
-		rowan_text="think that's all,\nghostbusters? there's more where that came from."
+		rowan_text="think that's all? there's more where that came from. this is the end, ghostbusters!"
 	},
 	{ -- level 3
 		portal_hp=50,
@@ -1432,7 +1438,7 @@ end
 function boot_init()
 	play_music(0)
 	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;@morningtoast;_;music+sound;brian follick;@gnarcade_vgm;")
-	intro_text("_;_;_;for penelope;")
+	intro_text("_;_;_;for penny;")
 	intro_init(title_init)
 
 	cart_control(ef,intro_draw)
@@ -1492,6 +1498,7 @@ function title_update()
 	if btnzp then 
 		puft_st=0
 		charselect_init() 
+		--victory_init()
 	end
 	
 	if t>20 then
@@ -1512,7 +1519,7 @@ function title_update()
 	
 	if t<1000 then t+=1 end
 	
-	if (btnup or btndp) and unlocked then
+	if (btnup or btndp) and unlocked==1 then
 		charmode+=1
 		if charmode>1 then charmode=0 end
 	end
@@ -1561,26 +1568,29 @@ end
 
 
 
-
-
-
 -- #loop
 
  --load savedata
 cartdata("bustin2017")
-unlocked = dget("modeunlock")
+unlocked = dget(0)
 
 -- Pause menu options
 menuitem(1, "toggle music", function() 
 	if musicon then musicon=false music(-1) else musicon=true play_music(0) end
-end)	
+end)
+
+menuitem(2, "clear save data", function()
+	dset(0,0)
+	unlocked=0
+	charmode=0
+	title_init()
+end)
 
 
 function _init()
-	printh("boot =====================================")
+	--unlocked=false
 
 	tbx_init()
-	
 	boot_init()
 	--unlock_init()
 	--title_init()
@@ -1832,7 +1842,8 @@ function intro_complete()
 	intro_t=0
 	intro_color=0
 	
-	if intro_st>#intro_all then 
+	if intro_st>#intro_all then
+		intro_st=0
 		intro_all={}
 		return true
 	else return false end
@@ -2296,8 +2307,8 @@ __sfx__
 00080000326653266526655266551a6451a6450e6350e63532605266051a6050e60532605266051a6050e6052b1002b1002b1022b1022b1022b1022b1022b1022b1022b102261002610026100001000010000100
 00050000026000260003601056010c6210663108621096350f6300b6350c64010645016401264514640166401a6401a6551c6502065521650236552565027650086502b6552e6603066535660396653b6603f675
 01050000042300d23517230242302e230362353c23001205042300d23517230242352e230362353c23013200042300d23517230242352e230362353c23007200042300d23517230242352e230362353c2300d205
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000800001c15016150101500c15009150051500314001130011200120001200012000120001200012000320001200012000320003200032000220002200012000220001200000000000000000000000000000000
+000500001225013250182501c2501e250202500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
