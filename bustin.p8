@@ -1,11 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
 version 8
 __lua__
-version="1.0"
-screen_x,screen_y,screen_w,screen_h=0,0,127,127
+--bustin'
+--brian vaughn, 2017
 
--- bustin'
--- brian vaughn, 2017
 
 -- follow @morningtoast
 -- please check out my other Pico-8 games online or on the PocketCHIP:
@@ -18,8 +16,10 @@ screen_x,screen_y,screen_w,screen_h=0,0,127,127
 -- Invader Overload
 -- Mass 360
 
+-- History
+-- 1.0 - Initial release (9/17/2017)
 
-
+version="1.0"
 musicon=true
 lanes={3,32,61,90}
 unlocked=0
@@ -233,8 +233,9 @@ function slimer_update()
 				
 			end
 
+			-- slimer makes it off screen
 			if s.x<-16 then
-				p_slime=min(p_slime+5,100) -- add to slime meter
+				p_slime=min(p_slime+5,100) -- add to slime meter but not to kill count
 				del(slimers,s)
 			end
 		end
@@ -815,7 +816,7 @@ function game_init()
 				fooang+=0.1 --distance between crests
 				fooy+=sin(fooang)*1 --height of wave
 				
-				if fool==p_lane and foox<muzzle_x-8 and foox>0 then
+				if fool==p_lane and foox<muzzle_x-8 and foox>0 and p_invincible<1 then
 					p_slimed=true
 					p_t=0
 				end
@@ -1026,8 +1027,6 @@ function victory_init()
 				else 
 					vic_st=8
 					t=50
-					printh("end credits")
-					--intro_all={}
 					intro_text(";_;thank you ghostbusters!;")
 					intro_text(";_;the city is once again safe...;")
 					intro_text(";_;...for now;")
@@ -1035,8 +1034,14 @@ function victory_init()
 					intro_text("music+sounds;@gnarcade_vgm;")
 					intro_text("character art;hal laboratory, 1990;;additional art;@morningtoast;@beetleinthebox;")
 					intro_text(";_;you busted "..kills.." ghosts;")
-					intro_text(";_;thanks for playing;")
-					intro_text(";_;please try other games;from @morningtoast;")
+					
+					if unlocked<1 then
+						intro_text(";_;special characters unlocked;please play again;")
+					else
+						intro_text(";_;thanks for playing;")
+						intro_text(";_;please try other games;from @morningtoast;")
+					end
+					
 					intro_init(ef)
 				end
 			end
@@ -1056,7 +1061,7 @@ function victory_init()
 			end
 			
 			if btnxp or btnzp then 
-				if unlocked then
+				if unlocked>0 then
 					title_init() 
 				else
 					unlock_init()
@@ -1109,7 +1114,7 @@ end
 function unlock_init()
 	t=0
 	unlocked=1
-	dset(0,true)
+	dset(0,1)
 
 	cart_control(ef,unlock_draw)
 end
@@ -1117,7 +1122,7 @@ end
 function unlock_draw()
 	rectfill(0,0,128,128,1)
 	center_text("who you gonna call?",15,8)
-	center_text("classic 1984 mode unlocked",30,10)
+	center_text("classic characters unlocked",30,10)
 	center_text("use \131\148 to switch modes",50,7)
 	center_text("at the title screen",58,7)
 	
@@ -1380,7 +1385,7 @@ levels={
 		portal_spawn=50,
 		portal_offset={0,0,0,0},
 		slimer_hp=10,
-		slimer_speed=.6,
+		slimer_speed=.8,
 		slimer_max=10,
 		rowan_text="i must help my ghost army. the end is near, ghostbusters. you can't stop us all!"
 	},
@@ -1390,7 +1395,7 @@ levels={
 		portal_offset={0,0,0,0},
 		slimer_hp=6,
 		slimer_speed=.8,
-		slimer_max=10,
+		slimer_max=15,
 		rowan_text="i guess if you want to take over the world, you have to do it yourself."
 	}
 }
@@ -1519,7 +1524,7 @@ function title_update()
 	
 	if t<1000 then t+=1 end
 	
-	if (btnup or btndp) and unlocked==1 then
+	if (btnup or btndp) and unlocked>0 then
 		charmode+=1
 		if charmode>1 then charmode=0 end
 	end
@@ -1572,7 +1577,6 @@ end
 
  --load savedata
 cartdata("bustin2017")
-unlocked = dget(0)
 
 -- Pause menu options
 menuitem(1, "toggle music", function() 
@@ -1588,13 +1592,10 @@ end)
 
 
 function _init()
-	--unlocked=false
-
+	unlocked=dget(0)
+	
 	tbx_init()
 	boot_init()
-	--unlock_init()
-	--title_init()
-	--victory_init()
 end
 
 function _update()
@@ -1605,7 +1606,7 @@ function _update()
 	btnxp=btnp(5)
 	
 	cart_update()
-	
+
 	t=min(32000,t+1)
 end
 
