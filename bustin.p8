@@ -5,8 +5,8 @@ __lua__
 --brian vaughn, 2017
 
 
--- follow @morningtoast
--- please check out my other Pico-8 games online or on the PocketCHIP:
+-- Follow @morningtoast
+-- Please check out my other Pico-8 games online or on the PocketCHIP:
 -- https://www.lexaloffle.com/bbs/?uid=12806&mode=carts
 --
 -- Bullet Cave
@@ -17,9 +17,10 @@ __lua__
 -- Mass 360
 
 -- History
--- 1.0 - Initial release (9/17/2017)
+-- 1.0 - 09/17/17 - Initial release
+-- 1.1 - 09/18/17 - Fix for crash after winning with unlocked character
 
-version="1.0"
+version="1.1"
 musicon=true
 lanes={3,32,61,90}
 unlocked=0
@@ -1060,7 +1061,9 @@ function victory_init()
 				t=0
 			end
 			
-			if btnxp or btnzp then 
+			if btnxp or btnzp then
+				
+				
 				if unlocked>0 then
 					title_init() 
 				else
@@ -1442,7 +1445,7 @@ end
 -- #intro
 function boot_init()
 	play_music(0)
-	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;@morningtoast;_;music+sound;brian follick;@gnarcade_vgm;")
+	intro_text("bustin' v"..version..";(c)brian vaughn, 2017;_;_;design+code;brian vaughn;@morningtoast;_;_;music+sound;brian follick;@gnarcade_vgm;")
 	intro_text("_;_;_;for penny;")
 	intro_init(title_init)
 
@@ -1467,7 +1470,8 @@ function title_init()
 	bglayer2_cy=0
 
 	layer1_x=0
-	layer2_x=0	
+	layer2_x=0
+	intro_all={}
 	
 	cam_x,cam_y=0,0
 	
