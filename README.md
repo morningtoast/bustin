@@ -1,8 +1,8 @@
 # Bustin'
 
-[Bustin](https://www.lexaloffle.com/bbs/files/12806/PICO-8_39.gif)
+![Bustin](https://www.lexaloffle.com/bbs/files/12806/PICO-8_39.gif)
 
-[Bustin](https://www.lexaloffle.com/bbs/files/12806/PICO-8_42.gif)
+![Bustin](https://www.lexaloffle.com/bbs/files/12806/PICO-8_42.gif)
 
 New York City is being overrun by ghosts! Who you gonna call?
 
