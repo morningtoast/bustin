@@ -940,6 +940,8 @@ function victory_init()
 	
 	--p_lane=4
 	vic_st=1
+	
+	
 	rowan_x,rowan_y,rowan_a=130,p_y,0
 	
 	function bobbing()
@@ -949,6 +951,9 @@ function victory_init()
 	
 
 	function victory_update()
+		p_canfire=false
+		firing=false
+		p_slimed=false
 		p_y=lanes[p_lane]
 		trap_update()
 		expl_update()
@@ -1037,6 +1042,7 @@ function victory_init()
 					intro_text(";_;you busted "..kills.." ghosts;")
 					
 					if unlocked<1 then
+						
 						intro_text(";_;special characters unlocked;please play again;")
 					else
 						intro_text(";_;thanks for playing;")
@@ -1393,7 +1399,7 @@ levels={
 		rowan_text="i must help my ghost army. the end is near, ghostbusters. you can't stop us all!"
 	},
 	{ -- level 5, boss fight
-		portal_hp=40,
+		portal_hp=50, --50
 		portal_spawn=50,
 		portal_offset={0,0,0,0},
 		slimer_hp=6,
@@ -1472,7 +1478,8 @@ function title_init()
 	layer1_x=0
 	layer2_x=0
 	intro_all={}
-	
+	intro_st=0
+		
 	cam_x,cam_y=0,0
 	
 	cart_control(title_update,title_draw)
