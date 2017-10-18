@@ -19,8 +19,9 @@ __lua__
 -- History
 -- 1.0 - 09/17/17 - Initial release
 -- 1.1 - 09/18/17 - Fix for crash after winning with unlocked character
+-- 1.2 - 10/18/17 - Minor fixes. Trap sfx when it closes
 
-version="1.1"
+version="1.2"
 musicon=true
 lanes={3,32,61,90}
 unlocked=0
@@ -61,8 +62,6 @@ function p_update()
         if p_canfire then
 			p_power=min(p_power+1.6,100) --speed of overheating
 			if p_power>=100 then
-				
-				--if p_power==100 then sfx(3) end
 				
 				p_canfire=false
 				firing=false 
@@ -537,7 +536,7 @@ function trap_update()
 		
 		if trap_st==2 then
 			-- @sound of trap opening, one-timer
-			sfx(2)
+			
 			for n=0,48 do
 				local obj={
 					ox=random(trap_x-6,trap_x+16),
@@ -557,7 +556,10 @@ function trap_update()
 		
 		if trap_st==3 then
 			trap_t+=1
-			if trap_t>210 then trap_st=4 end --time to end
+			if trap_t>210 then 
+				sfx(2)
+				trap_st=4 
+			end --time to end
 			
 			for p in all(trap_ps) do
 				p.x+=p.dx
